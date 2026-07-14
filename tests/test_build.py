@@ -96,3 +96,53 @@ def test_write_llms_context_skips_manual_file(tmp_path, monkeypatch):
 
     assert dp.write_llms_context([]) == "skipped"
     assert manual.read_text(encoding="utf-8") == "# Manual context\n"
+
+
+def test_write_llms_full_context_includes_document_content(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
+    monkeypatch.setattr(dp, "LLMS_FULL", tmp_path / "llms-full.txt")
+    monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
+    monkeypatch.setattr(
+        dp,
+        "CONFIG",
+        dp.SiteConfig(name="Acme Docs", description="Team knowledge base"),
+    )
+
+    source = tmp_path / "guides" / "install.md"
+    source.parent.mkdir()
+    source.write_text("# Install\n\n```bash\nacme install\n```\n", encoding="utf-8")
+
+    item = dp.DocItem(
+        title="Install Guide",
+        path=Path("guides/install.html"),
+        link=Path("guides/install.html"),
+        source=Path("guides/install.md"),
+        kind="Converted Markdown",
+        chapter="guides",
+        generated=True,
+    )
+
+    assert dp.write_llms_full_context([item]) == "created"
+    text = (tmp_path / "llms-full.txt").read_text(encoding="utf-8")
+    assert text.startswith("# Acme Docs Full Context\n")
+    assert "<!-- ts-docs-generated: llms-full -->" in text
+    assert "### Install Guide" in text
+    assert "- Path: `guides/install.html`" in text
+    assert "- Source: `guides/install.md`" in text
+    assert "# Install" in text
+    assert "````text\n# Install" in text
+    assert "```bash\nacme install\n```" in text
+    assert dp.write_llms_full_context([item]) == "unchanged"
+
+
+def test_write_llms_full_context_skips_manual_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "LLMS_FULL", tmp_path / "llms-full.txt")
+    monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
+
+    manual = tmp_path / "llms-full.txt"
+    manual.write_text("# Manual full context\n", encoding="utf-8")
+
+    assert dp.write_llms_full_context([]) == "skipped"
+    assert manual.read_text(encoding="utf-8") == "# Manual full context\n"

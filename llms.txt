@@ -47,6 +47,8 @@ output works offline and can be copied as standalone files.
 - Generated Markdown pages and the portal are marked with `ts-docs-generated`.
 - Hand-written HTML is indexed but not overwritten unless it carries the
   generated marker.
+- `llms.txt` is a compact LLM map; `llms-full.txt` contains the extracted full
+  text context for AI agents, chat tools and RAG pipelines.
 - `--no-timestamp` omits build timestamps so generated output can be
   byte-identical across runs.
 - The default portal filename is `DOCUMENTATION.html`.

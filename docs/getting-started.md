@@ -57,7 +57,7 @@ You will get:
 
 - one generated `*.html` next to each `*.md`
 - a portal index (`DOCUMENTATION.html` by default) with search and navigation
-- an `llms.txt` context index for LLMs and AI agents
+- `llms.txt` and `llms-full.txt` context files for LLMs and AI agents
 
 Open it:
 
@@ -81,6 +81,7 @@ exactly what changed:
 Build summary
   Markdown (12):   1 created · 2 updated · 9 unchanged · 0 skipped
   LLM context:    llms.txt (updated)
+  Full context:   llms-full.txt (updated)
   ...
 ```
 

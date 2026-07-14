@@ -32,6 +32,7 @@ from mdit_py_plugins.tasklists import tasklists_plugin
 ROOT = Path.cwd()
 PORTAL = ROOT / "DOCUMENTATION.html"
 LLMS = ROOT / "llms.txt"
+LLMS_FULL = ROOT / "llms-full.txt"
 GENERATED_MARKER = "ts-docs-generated"
 STANDARDIZED_MARKER = "ts-docs-ui-standardized"
 
@@ -1166,12 +1167,7 @@ def llms_doc_line(item: DocItem) -> str:
     return f"- [{title}]({link}): {summary}"
 
 
-def render_llms_context(items: list[DocItem]) -> str:
-    cfg = CONFIG
-    generated_at = generated_stamp()
-    timestamp = f" Generated: {generated_at}." if generated_at else ""
-    portal_link = markdown_link_path(PORTAL.relative_to(ROOT))
-
+def chapter_doc_sections(items: list[DocItem]) -> list[tuple[str, str, list[DocItem]]]:
     chapter_map: dict[str, list] = {
         key: [title, desc, []] for key, title, desc in cfg_chapters()
     }
@@ -1185,10 +1181,21 @@ def render_llms_context(items: list[DocItem]) -> str:
             chapter_key = "other"
         chapter_map[chapter_key][2].append(item)
 
+    return [
+        (title, desc, docs)
+        for title, desc, docs in chapter_map.values()
+        if docs
+    ]
+
+
+def render_llms_context(items: list[DocItem]) -> str:
+    cfg = CONFIG
+    generated_at = generated_stamp()
+    timestamp = f" Generated: {generated_at}." if generated_at else ""
+    portal_link = markdown_link_path(PORTAL.relative_to(ROOT))
+
     sections: list[str] = []
-    for title, desc, docs in chapter_map.values():
-        if not docs:
-            continue
+    for title, desc, docs in chapter_doc_sections(items):
         lines = "\n".join(llms_doc_line(item) for item in docs)
         sections.append(
             f"## {markdown_inline(title)}\n\n"
@@ -1220,6 +1227,60 @@ def render_llms_context(items: list[DocItem]) -> str:
     )
 
 
+def markdown_fence(content: str) -> str:
+    longest = max(
+        (len(match.group(0)) for match in re.finditer(r"`+", content)),
+        default=0,
+    )
+    return "`" * max(3, longest + 1)
+
+
+def llms_full_doc_section(item: DocItem) -> str:
+    source = item.source.as_posix() if item.source else ""
+    source_line = f"- Source: `{source}`\n" if source else ""
+    content = item_content_text(item).strip() or "(No content extracted.)"
+    fence = markdown_fence(content)
+    return (
+        f"### {markdown_inline(item.title)}\n\n"
+        f"- Path: `{item.path.as_posix()}`\n"
+        f"{source_line}"
+        f"- Kind: `{item.kind}`\n"
+        f"- Summary: {markdown_inline(item_summary(item))}\n\n"
+        "#### Content\n\n"
+        f"{fence}text\n"
+        f"{content}\n"
+        f"{fence}"
+    )
+
+
+def render_llms_full_context(items: list[DocItem]) -> str:
+    cfg = CONFIG
+    generated_at = generated_stamp()
+    timestamp = f" Generated: {generated_at}." if generated_at else ""
+
+    sections: list[str] = []
+    for title, desc, docs in chapter_doc_sections(items):
+        body = "\n\n".join(llms_full_doc_section(item) for item in docs)
+        sections.append(
+            f"## {markdown_inline(title)}\n\n"
+            f"{markdown_inline(desc)}\n\n"
+            f"{body}"
+        )
+
+    documents = "\n\n".join(sections) if sections else "No documents were found."
+    description = markdown_inline(cfg.description)
+
+    return (
+        f"# {markdown_inline(cfg.name)} Full Context\n\n"
+        f"> {description}\n\n"
+        f"<!-- {GENERATED_MARKER}: llms-full -->\n\n"
+        "This file contains the full text context extracted by docs-portal for "
+        "LLMs, AI agents and RAG pipelines."
+        f"{timestamp}\n\n"
+        f"{documents}\n"
+    )
+
+
 def can_write_generated_context(path: Path) -> bool:
     if not path.exists():
         return True
@@ -1233,6 +1294,12 @@ def write_llms_context(items: list[DocItem]) -> str:
     if not can_write_generated_context(LLMS):
         return "skipped"
     return _write_if_changed(LLMS, render_llms_context(items))
+
+
+def write_llms_full_context(items: list[DocItem]) -> str:
+    if not can_write_generated_context(LLMS_FULL):
+        return "skipped"
+    return _write_if_changed(LLMS_FULL, render_llms_full_context(items))
 
 
 def parse_args(argv: list[str], default_root: Path) -> argparse.Namespace:
@@ -1288,11 +1355,12 @@ def parse_args(argv: list[str], default_root: Path) -> argparse.Namespace:
 
 
 def cmd_build(args: argparse.Namespace) -> None:
-    global ROOT, PORTAL, LLMS, INCLUDE_TIMESTAMP, CONFIG
+    global ROOT, PORTAL, LLMS, LLMS_FULL, INCLUDE_TIMESTAMP, CONFIG
 
     ROOT = args.root.resolve()
     PORTAL = ROOT / args.out
     LLMS = ROOT / "llms.txt"
+    LLMS_FULL = ROOT / "llms-full.txt"
     INCLUDE_TIMESTAMP = not args.no_timestamp
 
     config_path = args.config if args.config else (ROOT / "docs-portal.toml")
@@ -1306,6 +1374,7 @@ def cmd_build(args: argparse.Namespace) -> None:
     all_docs = markdown_docs + original_html
     portal_status = write_portal(all_docs, len(md_files))
     llms_status = write_llms_context(all_docs)
+    llms_full_status = write_llms_full_context(all_docs)
 
     if not args.quiet:
         config_label = (
@@ -1336,6 +1405,13 @@ def cmd_build(args: argparse.Namespace) -> None:
             )
         else:
             print(f"  LLM context:    llms.txt ({llms_status})")
+        if llms_full_status == "skipped":
+            print(
+                "  Full context:   llms-full.txt "
+                "(skipped; existing file has no generated marker)"
+            )
+        else:
+            print(f"  Full context:   llms-full.txt ({llms_full_status})")
         if md_stats["skipped"]:
             print(
                 f"  Note: {md_stats['skipped']} .md files skipped "
@@ -1345,6 +1421,7 @@ def cmd_build(args: argparse.Namespace) -> None:
             touched == 0
             and portal_status == "unchanged"
             and llms_status in {"unchanged", "skipped"}
+            and llms_full_status in {"unchanged", "skipped"}
         ):
             print("  No changes: everything is already up to date.")
 
