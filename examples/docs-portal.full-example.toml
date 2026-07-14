@@ -1,0 +1,37 @@
+# Full docs-portal.toml example: reproduces the built-in defaults.
+# Copy to your project root as docs-portal.toml and adapt to your folders.
+
+open_chapters = ["overview"]
+
+[[chapters]]
+key = "overview"
+title = "01. Overview"
+description = "Project overview and top-level notes."
+
+[[chapters]]
+key = "guides"
+title = "02. Guides"
+description = "How-to guides and tutorials."
+
+[[chapters]]
+key = "reference"
+title = "03. Reference"
+description = "Reference material and specifications."
+
+[[chapters]]
+key = "other"
+title = "99. Other"
+description = "Uncategorized documents."
+
+[[rules]]
+chapter = "guides"
+startswith = ["guides/", "guide/", "tutorials/", "howto/", "how-to/"]
+
+[[rules]]
+chapter = "reference"
+startswith = ["reference/", "api/", "spec/"]
+
+[[rules]]
+chapter = "overview"
+name_in = ["readme.md", "index.md", "overview.md"]
+startswith = ["docs/"]
