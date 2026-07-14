@@ -1,0 +1,52 @@
+# docs-portal
+
+> docs-portal builds self-contained, searchable HTML documentation portals from
+> Markdown folders, with zero-config setup and offline-friendly output.
+
+docs-portal is a Python CLI for documentation folders. It converts Markdown
+files into styled HTML pages, indexes existing hand-written HTML, and writes a
+single searchable portal. Generated pages inline CSS and local assets so the
+output works offline and can be copied as standalone files.
+
+## Install
+
+- `pipx install "git+https://github.com/Alexclne/docs-portal.git"`: recommended
+  isolated install from GitHub.
+- `python -m pip install "git+https://github.com/Alexclne/docs-portal.git"`:
+  install into the active virtual environment.
+
+## Core Commands
+
+- `docs-portal init`: detect chapters from folders and create
+  `docs-portal.toml`.
+- `docs-portal`: build the portal with default settings.
+- `docs-portal build --out index.html --no-timestamp`: build for web hosting
+  with reproducible output.
+
+## Documentation
+
+- [README](README.md): overview, features, install and quick start.
+- [Getting Started](docs/getting-started.md): first install and build flow.
+- [CLI Reference](docs/cli.md): commands, options and build report.
+- [Configuration Reference](docs/configuration.md): `docs-portal.toml` sections
+  and keys.
+- [Contributing](CONTRIBUTING.md): development setup, tests and project layout.
+- [Changelog](CHANGELOG.md): release history.
+
+## Source
+
+- [Main package](src/docs_portal/__init__.py): CLI, rendering, config, portal
+  generation and init logic.
+- [Module entry point](src/docs_portal/__main__.py): `python -m docs_portal`.
+- [Portal stylesheet](src/docs_portal/docs_portal.css): embedded CSS used by
+  generated pages.
+- [Tests](tests/): pytest coverage for rendering, builds, taxonomy and config.
+
+## Important Behavior
+
+- Generated Markdown pages and the portal are marked with `ts-docs-generated`.
+- Hand-written HTML is indexed but not overwritten unless it carries the
+  generated marker.
+- `--no-timestamp` omits build timestamps so generated output can be
+  byte-identical across runs.
+- The default portal filename is `DOCUMENTATION.html`.
