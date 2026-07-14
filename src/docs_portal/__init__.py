@@ -33,6 +33,8 @@ ROOT = Path.cwd()
 PORTAL = ROOT / "DOCUMENTATION.html"
 LLMS = ROOT / "llms.txt"
 LLMS_FULL = ROOT / "llms-full.txt"
+GRAPH_JSON = ROOT / "docs-graph.json"
+GRAPH_HTML = ROOT / "docs-graph.html"
 GENERATED_MARKER = "ts-docs-generated"
 STANDARDIZED_MARKER = "ts-docs-ui-standardized"
 
@@ -708,6 +710,229 @@ def item_content_text(item: DocItem) -> str:
     return ""
 
 
+def document_source_path(item: DocItem) -> Path:
+    if item.source is not None:
+        return ROOT / item.source
+    return ROOT / item.path
+
+
+def clean_link_label(value: str, fallback: str) -> str:
+    label = strip_html_text(value)
+    label = strip_inline(label)
+    label = re.sub(r"\s+", " ", label).strip()
+    return label or fallback
+
+
+def markdown_doc_links(text: str) -> list[tuple[str, str]]:
+    tokens = _markdown_parser().parse(text, {})
+    links: list[tuple[str, str]] = []
+
+    for token in tokens:
+        if token.type != "inline" or not token.children:
+            continue
+        children = token.children
+        index = 0
+        while index < len(children):
+            child = children[index]
+            if child.type != "link_open":
+                index += 1
+                continue
+
+            href = child.attrGet("href") or ""
+            label_parts: list[str] = []
+            index += 1
+            while index < len(children) and children[index].type != "link_close":
+                if getattr(children[index], "content", ""):
+                    label_parts.append(children[index].content)
+                index += 1
+
+            links.append((href, clean_link_label(" ".join(label_parts), href)))
+            index += 1
+
+    return links
+
+
+def html_doc_links(text: str) -> list[tuple[str, str]]:
+    links: list[tuple[str, str]] = []
+    pattern = re.compile(
+        r"<a\b[^>]*\bhref=(['\"])(.*?)\1[^>]*>(.*?)</a>",
+        flags=re.I | re.S,
+    )
+    for _quote, href, label in pattern.findall(text):
+        links.append((href, clean_link_label(label, href)))
+    return links
+
+
+def item_doc_links(item: DocItem) -> list[tuple[str, str]]:
+    source_path = document_source_path(item)
+    if not source_path.exists():
+        return []
+
+    text = read_text(source_path)
+    if source_path.suffix.lower() == ".md":
+        return markdown_doc_links(text)
+    if source_path.suffix.lower() == ".html":
+        return html_doc_links(text)
+    return []
+
+
+def strip_url_fragment_and_query(href: str) -> str:
+    value = href.strip()
+    if "#" in value:
+        value = value.split("#", 1)[0]
+    if "?" in value:
+        value = value.split("?", 1)[0]
+    return value
+
+
+def graph_target_path(source_file: Path, href: str) -> Path | None:
+    value = strip_url_fragment_and_query(href)
+    if not value:
+        return None
+    if re.match(r"^(https?:|mailto:|tel:|data:|javascript:)", value, flags=re.I):
+        return None
+    if value.startswith("<") and value.endswith(">"):
+        value = value[1:-1]
+
+    target = (source_file.parent / value).resolve()
+    if not target.is_relative_to(ROOT):
+        return None
+
+    rel_target = target.relative_to(ROOT)
+    suffix = rel_target.suffix.lower()
+    if suffix == ".md":
+        rel_target = rel_target.with_suffix(".html")
+    elif suffix != ".html":
+        return None
+
+    return rel_target
+
+
+def graph_node_positions(nodes: list[dict]) -> None:
+    chapter_order = {
+        key: index for index, (key, _title, _desc) in enumerate(cfg_chapters())
+    }
+    grouped: dict[str, list[dict]] = {}
+    for node in sorted(
+        nodes,
+        key=lambda item: (chapter_order.get(item["chapterKey"], 999), item["id"]),
+    ):
+        grouped.setdefault(node["chapterKey"], []).append(node)
+
+    width = 1200
+    height = 720
+    margin_x = 110
+    margin_y = 92
+    groups = list(grouped.values())
+    if not groups:
+        return
+
+    for group_index, group in enumerate(groups):
+        if len(groups) == 1:
+            x = width / 2
+        else:
+            x = margin_x + group_index * ((width - (margin_x * 2)) / (len(groups) - 1))
+        for item_index, node in enumerate(group):
+            y = margin_y + (item_index + 1) * (
+                (height - (margin_y * 2)) / (len(group) + 1)
+            )
+            node["x"] = round(x, 2)
+            node["y"] = round(y, 2)
+
+
+def build_docs_graph(items: list[DocItem]) -> dict:
+    sorted_items = sorted(items, key=lambda item: item.path.as_posix().lower())
+    doc_by_id = {item.path.as_posix().lower(): item for item in sorted_items}
+    nodes: list[dict] = []
+    edges: list[dict] = []
+    broken_links: list[dict] = []
+    edge_seen: set[tuple[str, str, str]] = set()
+    incoming: dict[str, int] = {}
+    outgoing: dict[str, int] = {}
+
+    for item in sorted_items:
+        item_id = item.path.as_posix()
+        chapter_title, _chapter_desc = chapter_meta(item.chapter)
+        nodes.append(
+            {
+                "id": item_id,
+                "title": item.title,
+                "chapterKey": item.chapter,
+                "chapter": chapter_title,
+                "kind": item.kind,
+                "type": doc_type(item),
+                "summary": item_summary(item),
+                "url": item.link.as_posix(),
+                "source": item.source.as_posix() if item.source else "",
+            }
+        )
+        incoming[item_id] = 0
+        outgoing[item_id] = 0
+
+    for item in sorted_items:
+        source_id = item.path.as_posix()
+        source_path = document_source_path(item)
+        for href, label in item_doc_links(item):
+            target_path = graph_target_path(source_path, href)
+            if target_path is None:
+                continue
+
+            target_id = target_path.as_posix()
+            if target_id == source_id:
+                continue
+
+            target = doc_by_id.get(target_id.lower())
+            if target is None:
+                broken_links.append(
+                    {
+                        "source": source_id,
+                        "target": target_id,
+                        "label": label,
+                        "href": href,
+                    }
+                )
+                continue
+
+            key = (source_id, target.path.as_posix(), label)
+            if key in edge_seen:
+                continue
+            edge_seen.add(key)
+            edges.append(
+                {"source": source_id, "target": target.path.as_posix(), "label": label}
+            )
+            outgoing[source_id] += 1
+            incoming[target.path.as_posix()] += 1
+
+    for node in nodes:
+        node["incoming"] = incoming[node["id"]]
+        node["outgoing"] = outgoing[node["id"]]
+
+    graph_node_positions(nodes)
+    orphans = [node["id"] for node in nodes if node["incoming"] == 0]
+    hubs = sorted(nodes, key=lambda node: (-node["outgoing"], node["title"].lower()))[:10]
+
+    return {
+        "marker": GENERATED_MARKER,
+        "generated": generated_stamp(),
+        "portal": PORTAL.relative_to(ROOT).as_posix(),
+        "stats": {
+            "nodes": len(nodes),
+            "edges": len(edges),
+            "brokenLinks": len(broken_links),
+            "orphans": len(orphans),
+        },
+        "nodes": nodes,
+        "edges": edges,
+        "brokenLinks": broken_links,
+        "orphans": orphans,
+        "hubs": [
+            {"id": node["id"], "title": node["title"], "outgoing": node["outgoing"]}
+            for node in hubs
+            if node["outgoing"] > 0
+        ],
+    }
+
+
 def search_index_entry(item: DocItem) -> dict[str, str]:
     chapter_title = chapter_meta(item.chapter)[0]
     summary = item_summary(item)
@@ -798,6 +1023,7 @@ def chapter_card_html(index: int, key: str, title: str, desc: str, count: int) -
 
 
 def write_portal(items: list[DocItem], md_count: int) -> str:
+    graph_href = GRAPH_HTML.relative_to(ROOT).as_posix()
     chapter_map = {key: (title, desc, []) for key, title, desc in cfg_chapters()}
     for item in sorted(items, key=lambda d: (d.chapter, d.path.as_posix().lower())):
         if item.chapter not in chapter_map:
@@ -951,6 +1177,7 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
       <div class="hero-actions">
         <a class="button" href="#catalog">Open catalog</a>
         <a class="button secondary" href="#areas">Browse by area</a>
+        <a class="button secondary" href="{html.escape(graph_href)}">View graph</a>
       </div>
     </div>
     <div class="hero-summary" aria-label="Documentation summary">
@@ -1193,6 +1420,7 @@ def render_llms_context(items: list[DocItem]) -> str:
     generated_at = generated_stamp()
     timestamp = f" Generated: {generated_at}." if generated_at else ""
     portal_link = markdown_link_path(PORTAL.relative_to(ROOT))
+    graph_link = markdown_link_path(GRAPH_HTML.relative_to(ROOT))
 
     sections: list[str] = []
     for title, desc, docs in chapter_doc_sections(items):
@@ -1207,7 +1435,9 @@ def render_llms_context(items: list[DocItem]) -> str:
     description = markdown_inline(cfg.description)
     entry_points = [
         f"- [Searchable HTML portal]({portal_link}): "
-        "Browse and search the full documentation portal."
+        "Browse and search the full documentation portal.",
+        f"- [Documentation graph]({graph_link}): "
+        "Visualize internal links, orphan documents and broken references.",
     ]
     if (ROOT / "docs-portal.toml").exists():
         entry_points.append(
@@ -1302,6 +1532,398 @@ def write_llms_full_context(items: list[DocItem]) -> str:
     return _write_if_changed(LLMS_FULL, render_llms_full_context(items))
 
 
+def render_docs_graph_json(graph: dict) -> str:
+    return json.dumps(graph, ensure_ascii=False, indent=2) + "\n"
+
+
+def render_docs_graph_html(graph: dict) -> str:
+    cfg = CONFIG
+    graph_json = json.dumps(graph, ensure_ascii=False, separators=(",", ":")).replace(
+        "</", "<\\/"
+    )
+    generated_at = generated_stamp()
+    generated_label = f"Updated: {html.escape(generated_at)}" if generated_at else ""
+    portal_href = PORTAL.relative_to(ROOT).as_posix()
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(cfg.name, quote=False)} Documentation Graph</title>
+  <style>
+    :root {{
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9dee8;
+      --accent: #2563eb;
+      --green: #12805c;
+      --orange: #b45309;
+      --red: #b42318;
+      --shadow: 0 12px 34px rgba(16, 24, 40, .09);
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }}
+    a {{ color: var(--accent); text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+    .graph-shell {{ min-height: 100vh; display: flex; flex-direction: column; }}
+    .graph-header {{
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      padding: 18px 22px;
+    }}
+    .graph-header-main {{
+      align-items: center;
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      margin: 0 auto;
+      max-width: 1440px;
+    }}
+    .title-block h1 {{ font-size: 22px; line-height: 1.2; margin: 0; }}
+    .title-block p {{ color: var(--muted); margin: 4px 0 0; }}
+    .header-actions {{ align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }}
+    .button {{
+      align-items: center;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      color: #fff;
+      display: inline-flex;
+      font-weight: 700;
+      min-height: 38px;
+      padding: 8px 12px;
+    }}
+    .button.secondary {{ background: #fff; color: var(--accent); }}
+    .pill {{
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      display: inline-flex;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }}
+    .graph-layout {{
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      margin: 0 auto;
+      max-width: 1440px;
+      padding: 18px 22px 28px;
+      width: 100%;
+    }}
+    .panel {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }}
+    .graph-toolbar {{
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 14px;
+    }}
+    .graph-toolbar input {{
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--ink);
+      font: inherit;
+      min-height: 38px;
+      min-width: 260px;
+      padding: 8px 10px;
+      width: min(420px, 100%);
+    }}
+    .stats {{ display: flex; flex-wrap: wrap; gap: 8px; }}
+    .graph-canvas {{ overflow: auto; padding: 10px; }}
+    svg {{ display: block; height: min(72vh, 760px); min-height: 460px; width: 100%; }}
+    .edge {{ stroke: #98a2b3; stroke-width: 1.6; }}
+    .node circle {{
+      cursor: pointer;
+      fill: #ffffff;
+      stroke: var(--accent);
+      stroke-width: 2.5;
+    }}
+    .node text {{ fill: var(--ink); font-size: 13px; pointer-events: none; }}
+    .node .node-type {{ fill: var(--muted); font-size: 11px; }}
+    .node.selected circle {{ fill: #eff6ff; stroke-width: 4; }}
+    .hidden {{ opacity: .12; }}
+    .side-panel {{ padding: 16px; }}
+    .side-panel h2 {{ font-size: 16px; margin: 0 0 8px; }}
+    .side-panel h3 {{
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+      margin: 16px 0 8px;
+      padding-top: 14px;
+      text-transform: uppercase;
+    }}
+    .doc-title {{ font-size: 19px; font-weight: 800; margin: 0 0 8px; }}
+    .doc-meta, .doc-summary {{ color: var(--muted); line-height: 1.5; margin: 0 0 10px; }}
+    .list {{ display: grid; gap: 8px; margin: 0; padding: 0; }}
+    .list li {{
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      list-style: none;
+      padding: 8px 10px;
+    }}
+    .list small {{ color: var(--muted); display: block; margin-top: 2px; }}
+    .empty {{ color: var(--muted); font-size: 13px; }}
+    @media (max-width: 980px) {{
+      .graph-header-main, .graph-toolbar {{ align-items: flex-start; flex-direction: column; }}
+      .graph-layout {{ grid-template-columns: 1fr; padding: 14px; }}
+      .graph-toolbar input {{ min-width: 0; }}
+      svg {{ min-height: 520px; }}
+    }}
+  </style>
+</head>
+<body>
+  <!-- {GENERATED_MARKER}: graph generated={generated_at} -->
+  <div class="graph-shell">
+    <header class="graph-header">
+      <div class="graph-header-main">
+        <div class="title-block">
+          <h1>{html.escape(cfg.name, quote=False)} Documentation Graph</h1>
+          <p>Internal links, orphans and broken documentation references.</p>
+        </div>
+        <div class="header-actions">
+          {'<span class="pill">' + generated_label + '</span>' if generated_label else ''}
+          <a class="button secondary" href="{html.escape(portal_href)}">Portal</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="graph-layout">
+      <section class="panel">
+        <div class="graph-toolbar">
+          <input id="graph-search" type="search" placeholder="Search documents..." aria-label="Search graph documents">
+          <div class="stats" id="graph-stats"></div>
+        </div>
+        <div class="graph-canvas">
+          <svg id="graph-svg" viewBox="0 0 1200 720" role="img" aria-label="Documentation link graph"></svg>
+        </div>
+      </section>
+      <aside class="panel side-panel" aria-live="polite">
+        <h2>Selected Document</h2>
+        <div id="selected-doc" class="empty">Select a node to inspect it.</div>
+        <h3>Broken Links</h3>
+        <ul id="broken-links" class="list"></ul>
+        <h3>Orphan Documents</h3>
+        <ul id="orphan-docs" class="list"></ul>
+      </aside>
+    </main>
+  </div>
+
+  <script type="application/json" id="graph-data">{graph_json}</script>
+  <script>
+    const graph = JSON.parse(document.getElementById('graph-data').textContent);
+    const svg = document.getElementById('graph-svg');
+    const search = document.getElementById('graph-search');
+    const selectedDoc = document.getElementById('selected-doc');
+    const stats = document.getElementById('graph-stats');
+    const brokenLinks = document.getElementById('broken-links');
+    const orphanDocs = document.getElementById('orphan-docs');
+    const nodeById = new Map(graph.nodes.map(function (node) {{ return [node.id, node]; }}));
+    const nodeElements = new Map();
+    const edgeElements = [];
+    let selectedId = graph.nodes[0] ? graph.nodes[0].id : '';
+
+    function escapeHtml(value) {{
+      return String(value).replace(/[&<>"']/g, function (char) {{
+        return {{
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }}[char];
+      }});
+    }}
+
+    function svgEl(name, attrs) {{
+      const element = document.createElementNS('http://www.w3.org/2000/svg', name);
+      Object.entries(attrs || {{}}).forEach(function (entry) {{
+        element.setAttribute(entry[0], entry[1]);
+      }});
+      return element;
+    }}
+
+    function pill(label, value) {{
+      return '<span class="pill">' + escapeHtml(label) + ': ' + escapeHtml(value) + '</span>';
+    }}
+
+    function renderStats() {{
+      stats.innerHTML = [
+        pill('Docs', graph.stats.nodes),
+        pill('Links', graph.stats.edges),
+        pill('Broken', graph.stats.brokenLinks),
+        pill('Orphans', graph.stats.orphans)
+      ].join('');
+    }}
+
+    function selectNode(id) {{
+      selectedId = id;
+      nodeElements.forEach(function (element, nodeId) {{
+        element.classList.toggle('selected', nodeId === id);
+      }});
+      const node = nodeById.get(id);
+      if (!node) {{
+        selectedDoc.textContent = 'Select a node to inspect it.';
+        selectedDoc.className = 'empty';
+        return;
+      }}
+      selectedDoc.className = '';
+      selectedDoc.innerHTML =
+        '<p class="doc-title">' + escapeHtml(node.title) + '</p>' +
+        '<p class="doc-meta">' + escapeHtml(node.chapter) + ' · ' + escapeHtml(node.kind) + '</p>' +
+        '<p class="doc-summary">' + escapeHtml(node.summary) + '</p>' +
+        '<p class="doc-meta">Incoming: ' + node.incoming + ' · Outgoing: ' + node.outgoing + '</p>' +
+        '<a class="button" href="' + escapeHtml(node.url) + '">Open document</a>';
+    }}
+
+    function renderGraph() {{
+      svg.innerHTML = '';
+      const defs = svgEl('defs');
+      const marker = svgEl('marker', {{
+        id: 'arrow',
+        markerWidth: '10',
+        markerHeight: '10',
+        refX: '8',
+        refY: '3',
+        orient: 'auto',
+        markerUnits: 'strokeWidth'
+      }});
+      marker.appendChild(svgEl('path', {{ d: 'M0,0 L0,6 L9,3 z', fill: '#98a2b3' }}));
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+
+      graph.edges.forEach(function (edge) {{
+        const source = nodeById.get(edge.source);
+        const target = nodeById.get(edge.target);
+        if (!source || !target) return;
+        const line = svgEl('line', {{
+          class: 'edge',
+          x1: source.x,
+          y1: source.y,
+          x2: target.x,
+          y2: target.y,
+          'marker-end': 'url(#arrow)'
+        }});
+        svg.appendChild(line);
+        edgeElements.push({{ element: line, source: edge.source, target: edge.target }});
+      }});
+
+      graph.nodes.forEach(function (node) {{
+        const group = svgEl('g', {{ class: 'node', tabindex: '0' }});
+        group.dataset.nodeId = node.id;
+        group.appendChild(svgEl('circle', {{ cx: node.x, cy: node.y, r: '15' }}));
+        const label = svgEl('text', {{ x: node.x + 22, y: node.y - 2 }});
+        label.textContent = node.title;
+        group.appendChild(label);
+        const type = svgEl('text', {{ class: 'node-type', x: node.x + 22, y: node.y + 14 }});
+        type.textContent = node.chapter;
+        group.appendChild(type);
+        group.addEventListener('click', function () {{ selectNode(node.id); }});
+        group.addEventListener('keydown', function (event) {{
+          if (event.key === 'Enter' || event.key === ' ') {{
+            event.preventDefault();
+            selectNode(node.id);
+          }}
+        }});
+        svg.appendChild(group);
+        nodeElements.set(node.id, group);
+      }});
+      if (selectedId) selectNode(selectedId);
+    }}
+
+    function renderList(element, rows, emptyText, renderItem) {{
+      if (!rows.length) {{
+        element.innerHTML = '<li class="empty">' + emptyText + '</li>';
+        return;
+      }}
+      element.innerHTML = rows.map(renderItem).join('');
+    }}
+
+    function renderSideLists() {{
+      renderList(
+        brokenLinks,
+        graph.brokenLinks,
+        'No broken document links found.',
+        function (link) {{
+          const source = nodeById.get(link.source);
+          const sourceTitle = source ? source.title : link.source;
+          return '<li><strong>' + escapeHtml(sourceTitle) + '</strong><small>' + escapeHtml(link.target) + '</small></li>';
+        }}
+      );
+      renderList(
+        orphanDocs,
+        graph.orphans,
+        'No orphan documents found.',
+        function (id) {{
+          const node = nodeById.get(id);
+          const title = node ? node.title : id;
+          return '<li><a href="#" data-node-id="' + escapeHtml(id) + '">' + escapeHtml(title) + '</a><small>' + escapeHtml(id) + '</small></li>';
+        }}
+      );
+      orphanDocs.querySelectorAll('[data-node-id]').forEach(function (link) {{
+        link.addEventListener('click', function (event) {{
+          event.preventDefault();
+          selectNode(link.dataset.nodeId);
+        }});
+      }});
+    }}
+
+    function applySearch() {{
+      const query = search.value.trim().toLowerCase();
+      const visible = new Set();
+      graph.nodes.forEach(function (node) {{
+        const haystack = [node.title, node.id, node.chapter, node.kind, node.summary].join(' ').toLowerCase();
+        const match = !query || haystack.includes(query);
+        if (match) visible.add(node.id);
+        const element = nodeElements.get(node.id);
+        if (element) element.classList.toggle('hidden', !match);
+      }});
+      edgeElements.forEach(function (edge) {{
+        edge.element.classList.toggle(
+          'hidden',
+          !visible.has(edge.source) || !visible.has(edge.target)
+        );
+      }});
+    }}
+
+    renderStats();
+    renderGraph();
+    renderSideLists();
+    applySearch();
+    search.addEventListener('input', applySearch);
+  </script>
+</body>
+</html>
+"""
+
+
+def write_docs_graph_json(graph: dict) -> str:
+    if not can_write_generated_context(GRAPH_JSON):
+        return "skipped"
+    return _write_if_changed(GRAPH_JSON, render_docs_graph_json(graph))
+
+
+def write_docs_graph_html(graph: dict) -> str:
+    if not can_write_generated_context(GRAPH_HTML):
+        return "skipped"
+    return _write_if_changed(GRAPH_HTML, render_docs_graph_html(graph))
+
+
 def parse_args(argv: list[str], default_root: Path) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="docs-portal",
@@ -1355,12 +1977,14 @@ def parse_args(argv: list[str], default_root: Path) -> argparse.Namespace:
 
 
 def cmd_build(args: argparse.Namespace) -> None:
-    global ROOT, PORTAL, LLMS, LLMS_FULL, INCLUDE_TIMESTAMP, CONFIG
+    global ROOT, PORTAL, LLMS, LLMS_FULL, GRAPH_JSON, GRAPH_HTML, INCLUDE_TIMESTAMP, CONFIG
 
     ROOT = args.root.resolve()
     PORTAL = ROOT / args.out
     LLMS = ROOT / "llms.txt"
     LLMS_FULL = ROOT / "llms-full.txt"
+    GRAPH_JSON = ROOT / "docs-graph.json"
+    GRAPH_HTML = ROOT / "docs-graph.html"
     INCLUDE_TIMESTAMP = not args.no_timestamp
 
     config_path = args.config if args.config else (ROOT / "docs-portal.toml")
@@ -1375,6 +1999,9 @@ def cmd_build(args: argparse.Namespace) -> None:
     portal_status = write_portal(all_docs, len(md_files))
     llms_status = write_llms_context(all_docs)
     llms_full_status = write_llms_full_context(all_docs)
+    graph = build_docs_graph(all_docs)
+    graph_json_status = write_docs_graph_json(graph)
+    graph_html_status = write_docs_graph_html(graph)
 
     if not args.quiet:
         config_label = (
@@ -1412,6 +2039,17 @@ def cmd_build(args: argparse.Namespace) -> None:
             )
         else:
             print(f"  Full context:   llms-full.txt ({llms_full_status})")
+        if graph_json_status == "skipped" or graph_html_status == "skipped":
+            print(
+                "  Graph:          docs-graph.html / docs-graph.json "
+                "(skipped where existing files have no generated marker)"
+            )
+        else:
+            print(
+                "  Graph:          "
+                f"docs-graph.html ({graph_html_status}), "
+                f"docs-graph.json ({graph_json_status})"
+            )
         if md_stats["skipped"]:
             print(
                 f"  Note: {md_stats['skipped']} .md files skipped "
@@ -1422,6 +2060,8 @@ def cmd_build(args: argparse.Namespace) -> None:
             and portal_status == "unchanged"
             and llms_status in {"unchanged", "skipped"}
             and llms_full_status in {"unchanged", "skipped"}
+            and graph_json_status in {"unchanged", "skipped"}
+            and graph_html_status in {"unchanged", "skipped"}
         ):
             print("  No changes: everything is already up to date.")
 

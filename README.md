@@ -23,6 +23,8 @@ docs-portal                    # generates the HTML portal
 - **Self-contained output** — one HTML file per page, styles and assets inlined; no external requests.
 - **LLM-friendly context** — generates `llms.txt` and `llms-full.txt` so AI
   tools can discover the portal structure or ingest the full cleaned content.
+- **Documentation graph** — generates `docs-graph.html` and `docs-graph.json`
+  to visualize internal links, orphan documents, hubs, and broken references.
 - **Zero-config start, full control when needed** — sensible defaults, or a single
   `docs-portal.toml` for branding, colors, logo, and taxonomy.
 - **Safe & idempotent** — only ever overwrites files it generated (marker-based);
@@ -118,6 +120,8 @@ and `.html` files, skipping hidden directories and common noise
 - Existing `.html` files are indexed into the portal as-is.
 - `llms.txt` and `llms-full.txt` are generated with the same marker-based safety
   model. Hand-written files without the marker are left untouched.
+- `docs-graph.html` and `docs-graph.json` are generated from internal `.md` and
+  `.html` links using the same marker-based safety model.
 - Relative links to `.md` files are rewritten to point at the generated `.html`.
 
 ## License

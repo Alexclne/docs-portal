@@ -12,8 +12,9 @@ When working in this repository:
   module boundary already exists.
 - Keep generated output safe and idempotent. Do not overwrite hand-written files
   unless they contain the appropriate generated marker.
-- Treat `llms.txt` and `llms-full.txt` as generated outputs unless they are
-  hand-written files without the generated marker.
+- Treat `llms.txt`, `llms-full.txt`, `docs-graph.html`, and `docs-graph.json`
+  as generated outputs unless they are hand-written files without the generated
+  marker.
 - Preserve deterministic builds with `--no-timestamp`.
 - Update README/docs/examples when CLI behavior, defaults or public config
   surface changes.

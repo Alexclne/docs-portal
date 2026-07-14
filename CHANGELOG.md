@@ -24,5 +24,6 @@ to [Semantic Versioning](https://semver.org/).
   reproducible builds.
 - LLM-friendly `llms.txt` and `llms-full.txt` generation for documentation
   portals.
+- Documentation graph output via `docs-graph.html` and `docs-graph.json`.
 - Build report summarizing created / updated / unchanged / skipped documents.
 - pytest test suite.

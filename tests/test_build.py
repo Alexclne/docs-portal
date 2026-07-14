@@ -1,5 +1,6 @@
 """Tests for idempotent writes and build stats."""
 
+import json
 from pathlib import Path
 
 import docs_portal as dp
@@ -58,6 +59,7 @@ def test_write_llms_context_creates_index(tmp_path, monkeypatch):
     monkeypatch.setattr(dp, "ROOT", tmp_path)
     monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
     monkeypatch.setattr(dp, "LLMS", tmp_path / "llms.txt")
+    monkeypatch.setattr(dp, "GRAPH_HTML", tmp_path / "docs-graph.html")
     monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
     monkeypatch.setattr(
         dp,
@@ -146,3 +148,144 @@ def test_write_llms_full_context_skips_manual_file(tmp_path, monkeypatch):
 
     assert dp.write_llms_full_context([]) == "skipped"
     assert manual.read_text(encoding="utf-8") == "# Manual full context\n"
+
+
+def test_build_docs_graph_tracks_internal_and_broken_links(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
+    monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
+    monkeypatch.setattr(dp, "CONFIG", dp.SiteConfig())
+
+    (tmp_path / "guides").mkdir()
+    (tmp_path / "README.md").write_text(
+        "# Home\n\n[Install](guides/install.md)\n[Missing](missing.md)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "guides" / "install.md").write_text(
+        "# Install\n\n[Home](../README.md)\n",
+        encoding="utf-8",
+    )
+
+    items = [
+        dp.DocItem(
+            title="Home",
+            path=Path("README.html"),
+            link=Path("README.html"),
+            source=Path("README.md"),
+            kind="Converted Markdown",
+            chapter="overview",
+            generated=True,
+        ),
+        dp.DocItem(
+            title="Install",
+            path=Path("guides/install.html"),
+            link=Path("guides/install.html"),
+            source=Path("guides/install.md"),
+            kind="Converted Markdown",
+            chapter="guides",
+            generated=True,
+        ),
+    ]
+
+    graph = dp.build_docs_graph(items)
+
+    assert graph["stats"] == {"nodes": 2, "edges": 2, "brokenLinks": 1, "orphans": 0}
+    assert {
+        (edge["source"], edge["target"], edge["label"])
+        for edge in graph["edges"]
+    } == {
+        ("README.html", "guides/install.html", "Install"),
+        ("guides/install.html", "README.html", "Home"),
+    }
+    assert graph["brokenLinks"] == [
+        {
+            "source": "README.html",
+            "target": "missing.html",
+            "label": "Missing",
+            "href": "missing.md",
+        }
+    ]
+    assert all("x" in node and "y" in node for node in graph["nodes"])
+
+
+def test_write_docs_graph_outputs_json_and_html(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
+    monkeypatch.setattr(dp, "GRAPH_JSON", tmp_path / "docs-graph.json")
+    monkeypatch.setattr(dp, "GRAPH_HTML", tmp_path / "docs-graph.html")
+    monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
+    monkeypatch.setattr(dp, "CONFIG", dp.SiteConfig(name="Acme Docs"))
+
+    graph = dp.build_docs_graph([])
+
+    assert dp.write_docs_graph_json(graph) == "created"
+    json_data = json.loads((tmp_path / "docs-graph.json").read_text(encoding="utf-8"))
+    assert json_data["marker"] == dp.GENERATED_MARKER
+    assert json_data["stats"]["nodes"] == 0
+
+    assert dp.write_docs_graph_html(graph) == "created"
+    html = (tmp_path / "docs-graph.html").read_text(encoding="utf-8")
+    assert "<!-- ts-docs-generated: graph" in html
+    assert "Acme Docs Documentation Graph" in html
+    assert "graph-data" in html
+
+    assert dp.write_docs_graph_json(graph) == "unchanged"
+    assert dp.write_docs_graph_html(graph) == "unchanged"
+
+
+def test_write_docs_graph_skips_manual_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "GRAPH_JSON", tmp_path / "docs-graph.json")
+    monkeypatch.setattr(dp, "GRAPH_HTML", tmp_path / "docs-graph.html")
+
+    graph_json = tmp_path / "docs-graph.json"
+    graph_html = tmp_path / "docs-graph.html"
+    graph_json.write_text("{}\n", encoding="utf-8")
+    graph_html.write_text("<h1>Manual graph</h1>\n", encoding="utf-8")
+
+    assert dp.write_docs_graph_json({}) == "skipped"
+    assert dp.write_docs_graph_html({}) == "skipped"
+    assert graph_json.read_text(encoding="utf-8") == "{}\n"
+    assert graph_html.read_text(encoding="utf-8") == "<h1>Manual graph</h1>\n"
+
+
+def test_build_command_writes_context_and_graph_outputs(tmp_path):
+    old_state = (
+        dp.ROOT,
+        dp.PORTAL,
+        dp.LLMS,
+        dp.LLMS_FULL,
+        dp.GRAPH_JSON,
+        dp.GRAPH_HTML,
+        dp.INCLUDE_TIMESTAMP,
+        dp.CONFIG,
+    )
+    try:
+        (tmp_path / "README.md").write_text(
+            "# Home\n\nSee the [guide](guides/install.md).\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "guides").mkdir()
+        (tmp_path / "guides" / "install.md").write_text("# Install\n", encoding="utf-8")
+
+        dp.main(["build", "--root", str(tmp_path), "--no-timestamp", "--quiet"])
+
+        assert (tmp_path / "DOCUMENTATION.html").exists()
+        assert (tmp_path / "llms.txt").exists()
+        assert (tmp_path / "llms-full.txt").exists()
+        assert (tmp_path / "docs-graph.json").exists()
+        assert (tmp_path / "docs-graph.html").exists()
+        graph = json.loads((tmp_path / "docs-graph.json").read_text(encoding="utf-8"))
+        assert graph["stats"]["nodes"] == 2
+        assert graph["stats"]["edges"] == 1
+    finally:
+        (
+            dp.ROOT,
+            dp.PORTAL,
+            dp.LLMS,
+            dp.LLMS_FULL,
+            dp.GRAPH_JSON,
+            dp.GRAPH_HTML,
+            dp.INCLUDE_TIMESTAMP,
+            dp.CONFIG,
+        ) = old_state

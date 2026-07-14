@@ -44,8 +44,9 @@ environment.
 
 - Markdown rendering uses `markdown-it-py` plus `mdit-py-plugins`.
 - The default portal filename is `DOCUMENTATION.html`.
-- Builds also generate `llms.txt` and `llms-full.txt` when those files are absent
-  or already carry the generated marker.
+- Builds also generate `llms.txt`, `llms-full.txt`, `docs-graph.html`, and
+  `docs-graph.json` when those files are absent or already carry the generated
+  marker.
 - Existing hand-written HTML is indexed into the portal but left untouched unless
   explicitly listed in `manual_docs`.
 - Classification is driven by `docs-portal.toml` rules when present, otherwise

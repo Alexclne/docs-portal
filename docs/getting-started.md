@@ -58,6 +58,7 @@ You will get:
 - one generated `*.html` next to each `*.md`
 - a portal index (`DOCUMENTATION.html` by default) with search and navigation
 - `llms.txt` and `llms-full.txt` context files for LLMs and AI agents
+- `docs-graph.html` and `docs-graph.json` for link visualization and diagnostics
 
 Open it:
 
@@ -82,6 +83,7 @@ Build summary
   Markdown (12):   1 created · 2 updated · 9 unchanged · 0 skipped
   LLM context:    llms.txt (updated)
   Full context:   llms-full.txt (updated)
+  Graph:          docs-graph.html (updated), docs-graph.json (updated)
   ...
 ```
 

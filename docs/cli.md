@@ -9,8 +9,8 @@ Running `docs-portal` with no subcommand is equivalent to `docs-portal build`.
 
 ## `build`
 
-Generates the HTML pages, the portal index, an `llms.txt` map and an
-`llms-full.txt` full-content context file.
+Generates the HTML pages, the portal index, LLM context files, and a
+documentation graph.
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -40,6 +40,7 @@ Build summary
   Portal:         index.html (updated)
   LLM context:    llms.txt (updated)
   Full context:   llms-full.txt (updated)
+  Graph:          docs-graph.html (updated), docs-graph.json (updated)
 ```
 
 - **created / updated / unchanged** — pages created, changed, or left untouched.
@@ -49,6 +50,8 @@ Build summary
 - **LLM context** — generated `llms.txt` index and `llms-full.txt` content file.
   Existing manual files without the generated marker are skipped instead of
   overwritten.
+- **Graph** — generated visual graph and JSON data for internal document links,
+  broken references, and orphan documents.
 
 ## `init`
 

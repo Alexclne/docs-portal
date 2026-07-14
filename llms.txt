@@ -49,6 +49,8 @@ output works offline and can be copied as standalone files.
   generated marker.
 - `llms.txt` is a compact LLM map; `llms-full.txt` contains the extracted full
   text context for AI agents, chat tools and RAG pipelines.
+- `docs-graph.html` is a self-contained visual graph; `docs-graph.json` exposes
+  the underlying nodes, edges, broken links, orphans and hubs.
 - `--no-timestamp` omits build timestamps so generated output can be
   byte-identical across runs.
 - The default portal filename is `DOCUMENTATION.html`.
