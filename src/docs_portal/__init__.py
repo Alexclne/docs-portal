@@ -1542,68 +1542,105 @@ def render_docs_graph_html(graph: dict) -> str:
         "</", "<\\/"
     )
     generated_at = generated_stamp()
-    generated_label = f"Updated: {html.escape(generated_at)}" if generated_at else ""
+    generated_badge = (
+        f'<span class="pill">Updated: {html.escape(generated_at)}</span>'
+        if generated_at
+        else ""
+    )
     portal_href = PORTAL.relative_to(ROOT).as_posix()
-    return f"""<!doctype html>
+    page = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(cfg.name, quote=False)} Documentation Graph</title>
+  <title>__GRAPH_TITLE__</title>
   <style>
-    :root {{
-      --bg: #f6f7fb;
-      --panel: #ffffff;
-      --ink: #172033;
-      --muted: #667085;
-      --line: #d9dee8;
-      --accent: #2563eb;
-      --green: #12805c;
-      --orange: #b45309;
-      --red: #b42318;
-      --shadow: 0 12px 34px rgba(16, 24, 40, .09);
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
+    :root {
+      --bg: #070a13;
+      --panel: rgba(15, 23, 42, .82);
+      --panel-solid: #0f172a;
+      --panel-soft: rgba(30, 41, 59, .62);
+      --ink: #e5edf8;
+      --muted: #94a3b8;
+      --line: rgba(148, 163, 184, .18);
+      --accent: #60a5fa;
+      --accent-strong: #38bdf8;
+      --good: #34d399;
+      --warn: #f59e0b;
+      --bad: #fb7185;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .38);
+    }
+    * { box-sizing: border-box; }
+    body {
       margin: 0;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(56, 189, 248, .16), transparent 28%),
+        radial-gradient(circle at 86% 12%, rgba(168, 85, 247, .14), transparent 30%),
+        linear-gradient(135deg, #060914 0%, #0b1020 44%, #111827 100%);
       color: var(--ink);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
         "Segoe UI", sans-serif;
-    }}
-    a {{ color: var(--accent); text-decoration: none; }}
-    a:hover {{ text-decoration: underline; }}
-    .graph-shell {{ min-height: 100vh; display: flex; flex-direction: column; }}
-    .graph-header {{
-      border-bottom: 1px solid var(--line);
-      background: var(--panel);
-      padding: 18px 22px;
-    }}
-    .graph-header-main {{
+    }
+    a { color: var(--accent-strong); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .graph-shell { min-height: 100vh; padding: 18px; }
+    .graph-header {
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(15, 23, 42, .92), rgba(30, 41, 59, .74));
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .graph-header::after {
+      background: linear-gradient(90deg, transparent, rgba(96, 165, 250, .2), transparent);
+      content: "";
+      height: 1px;
+      left: 0;
+      position: absolute;
+      right: 0;
+      top: 0;
+    }
+    .graph-header-main {
       align-items: center;
       display: flex;
       gap: 18px;
       justify-content: space-between;
-      margin: 0 auto;
-      max-width: 1440px;
-    }}
-    .title-block h1 {{ font-size: 22px; line-height: 1.2; margin: 0; }}
-    .title-block p {{ color: var(--muted); margin: 4px 0 0; }}
-    .header-actions {{ align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }}
-    .button {{
+    }
+    .eyebrow {
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      margin: 0 0 6px;
+      text-transform: uppercase;
+    }
+    .title-block h1 { font-size: clamp(26px, 4vw, 44px); line-height: 1; margin: 0; }
+    .title-block p { color: var(--muted); line-height: 1.5; margin: 8px 0 0; max-width: 780px; }
+    .header-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+    .button {
       align-items: center;
-      background: var(--accent);
-      border: 1px solid var(--accent);
-      border-radius: 6px;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      border: 1px solid rgba(125, 211, 252, .48);
+      border-radius: 999px;
       color: #fff;
       display: inline-flex;
       font-weight: 700;
       min-height: 38px;
-      padding: 8px 12px;
-    }}
-    .button.secondary {{ background: #fff; color: var(--accent); }}
-    .pill {{
-      border: 1px solid var(--line);
+      padding: 8px 14px;
+      box-shadow: 0 12px 28px rgba(37, 99, 235, .24);
+    }
+    .button.secondary {
+      background: rgba(15, 23, 42, .56);
+      border-color: rgba(148, 163, 184, .24);
+      box-shadow: none;
+      color: var(--ink);
+    }
+    .pill {
+      background: rgba(15, 23, 42, .62);
+      border: 1px solid rgba(148, 163, 184, .2);
       border-radius: 999px;
       color: var(--muted);
       display: inline-flex;
@@ -1611,111 +1648,245 @@ def render_docs_graph_html(graph: dict) -> str:
       font-weight: 700;
       padding: 6px 10px;
       white-space: nowrap;
-    }}
-    .graph-layout {{
+    }
+    .graph-layout {
       display: grid;
       gap: 18px;
-      grid-template-columns: minmax(0, 1fr) 360px;
-      margin: 0 auto;
-      max-width: 1440px;
-      padding: 18px 22px 28px;
+      grid-template-columns: 300px minmax(0, 1fr) 360px;
       width: 100%;
-    }}
-    .panel {{
+    }
+    .panel {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 18px;
       box-shadow: var(--shadow);
-    }}
-    .graph-toolbar {{
-      align-items: center;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      gap: 12px;
-      justify-content: space-between;
-      padding: 14px;
-    }}
-    .graph-toolbar input {{
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      color: var(--ink);
-      font: inherit;
-      min-height: 38px;
-      min-width: 260px;
-      padding: 8px 10px;
-      width: min(420px, 100%);
-    }}
-    .stats {{ display: flex; flex-wrap: wrap; gap: 8px; }}
-    .graph-canvas {{ overflow: auto; padding: 10px; }}
-    svg {{ display: block; height: min(72vh, 760px); min-height: 460px; width: 100%; }}
-    .edge {{ stroke: #98a2b3; stroke-width: 1.6; }}
-    .node circle {{
-      cursor: pointer;
-      fill: #ffffff;
-      stroke: var(--accent);
-      stroke-width: 2.5;
-    }}
-    .node text {{ fill: var(--ink); font-size: 13px; pointer-events: none; }}
-    .node .node-type {{ fill: var(--muted); font-size: 11px; }}
-    .node.selected circle {{ fill: #eff6ff; stroke-width: 4; }}
-    .hidden {{ opacity: .12; }}
-    .side-panel {{ padding: 16px; }}
-    .side-panel h2 {{ font-size: 16px; margin: 0 0 8px; }}
-    .side-panel h3 {{
+      backdrop-filter: blur(18px);
+      overflow: hidden;
+    }
+    .control-panel, .side-panel { padding: 16px; }
+    .control-panel h2, .side-panel h2 {
+      font-size: 15px;
+      margin: 0 0 12px;
+      text-transform: uppercase;
+    }
+    .control-panel h3, .side-panel h3 {
       border-top: 1px solid var(--line);
-      font-size: 13px;
-      margin: 16px 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 16px 0 10px;
       padding-top: 14px;
       text-transform: uppercase;
-    }}
-    .doc-title {{ font-size: 19px; font-weight: 800; margin: 0 0 8px; }}
-    .doc-meta, .doc-summary {{ color: var(--muted); line-height: 1.5; margin: 0 0 10px; }}
-    .list {{ display: grid; gap: 8px; margin: 0; padding: 0; }}
-    .list li {{
+    }
+    .search-box {
+      background: rgba(2, 6, 23, .72);
       border: 1px solid var(--line);
-      border-radius: 6px;
-      list-style: none;
+      border-radius: 12px;
+      color: var(--ink);
+      font: inherit;
+      min-height: 42px;
+      outline: none;
+      padding: 10px 12px;
+      width: 100%;
+    }
+    .search-box:focus { border-color: rgba(96, 165, 250, .72); box-shadow: 0 0 0 3px rgba(96, 165, 250, .12); }
+    .metric-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 12px;
+    }
+    .metric {
+      background: rgba(15, 23, 42, .72);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .metric strong { color: var(--ink); display: block; font-size: 22px; line-height: 1; }
+    .metric span { color: var(--muted); display: block; font-size: 12px; margin-top: 5px; }
+    .filter-grid, .legend { display: grid; gap: 8px; }
+    .filter-button {
+      align-items: center;
+      background: rgba(15, 23, 42, .6);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--ink);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      min-height: 40px;
       padding: 8px 10px;
-    }}
-    .list small {{ color: var(--muted); display: block; margin-top: 2px; }}
-    .empty {{ color: var(--muted); font-size: 13px; }}
-    @media (max-width: 980px) {{
-      .graph-header-main, .graph-toolbar {{ align-items: flex-start; flex-direction: column; }}
-      .graph-layout {{ grid-template-columns: 1fr; padding: 14px; }}
-      .graph-toolbar input {{ min-width: 0; }}
-      svg {{ min-height: 520px; }}
-    }}
+      text-align: left;
+      width: 100%;
+    }
+    .filter-button.active {
+      background: rgba(37, 99, 235, .2);
+      border-color: rgba(96, 165, 250, .54);
+    }
+    .legend-dot { border-radius: 50%; display: inline-block; height: 10px; margin-right: 8px; width: 10px; }
+    .graph-stage { min-height: calc(100vh - 164px); position: relative; }
+    .stage-toolbar {
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      padding: 14px 16px;
+      position: relative;
+      z-index: 2;
+    }
+    .stage-title strong { display: block; font-size: 15px; }
+    .stage-title span { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+    .stage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ghost-button {
+      background: rgba(15, 23, 42, .6);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 700;
+      min-height: 34px;
+      padding: 7px 10px;
+    }
+    .graph-canvas {
+      height: calc(100% - 64px);
+      min-height: 620px;
+      overflow: hidden;
+      position: relative;
+    }
+    .graph-canvas::before {
+      background-image:
+        linear-gradient(rgba(148, 163, 184, .08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, .08) 1px, transparent 1px);
+      background-size: 42px 42px;
+      content: "";
+      inset: 0;
+      mask-image: radial-gradient(circle, black 34%, transparent 76%);
+      opacity: .42;
+      pointer-events: none;
+      position: absolute;
+    }
+    svg { display: block; height: 100%; min-height: 620px; position: relative; width: 100%; z-index: 1; }
+    .edge {
+      fill: none;
+      opacity: .62;
+      stroke: rgba(148, 163, 184, .44);
+      stroke-width: 1.6;
+    }
+    .edge.neighborhood { opacity: .95; stroke: rgba(125, 211, 252, .82); stroke-width: 2.4; }
+    .node { cursor: pointer; }
+    .node circle {
+      cursor: pointer;
+      filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .34));
+      stroke: rgba(255, 255, 255, .72);
+      stroke-width: 1.5;
+    }
+    .node text {
+      fill: #dbeafe;
+      font-size: 12px;
+      font-weight: 800;
+      paint-order: stroke;
+      pointer-events: none;
+      stroke: rgba(2, 6, 23, .84);
+      stroke-linejoin: round;
+      stroke-width: 4px;
+    }
+    .node .node-type { fill: var(--muted); font-size: 10px; font-weight: 700; }
+    .node.selected circle { filter: drop-shadow(0 0 22px rgba(96, 165, 250, .76)); stroke-width: 4; }
+    .node.dim, .edge.dim { opacity: .13; }
+    .node.hidden, .edge.hidden { display: none; }
+    .status-strip {
+      bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      left: 16px;
+      position: absolute;
+      z-index: 3;
+    }
+    .doc-title { font-size: 19px; font-weight: 800; margin: 0 0 8px; }
+    .doc-meta, .doc-summary { color: var(--muted); line-height: 1.5; margin: 0 0 10px; }
+    .connection-grid { display: grid; gap: 8px; }
+    .connection-card {
+      background: rgba(15, 23, 42, .62);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px 10px;
+    }
+    .connection-card strong { display: block; font-size: 13px; }
+    .connection-card span { color: var(--muted); display: block; font-size: 12px; margin-top: 3px; }
+    .list { display: grid; gap: 8px; margin: 0; padding: 0; }
+    .list li {
+      background: rgba(15, 23, 42, .58);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      list-style: none;
+      padding: 9px 10px;
+    }
+    .list small { color: var(--muted); display: block; margin-top: 2px; }
+    .empty { color: var(--muted); font-size: 13px; }
+    @media (max-width: 980px) {
+      .graph-shell { padding: 12px; }
+      .graph-header-main, .stage-toolbar { align-items: flex-start; flex-direction: column; }
+      .graph-layout { grid-template-columns: 1fr; }
+      .graph-stage { min-height: 640px; }
+      .graph-canvas, svg { min-height: 560px; }
+    }
   </style>
 </head>
 <body>
-  <!-- {GENERATED_MARKER}: graph generated={generated_at} -->
+  <!-- __GENERATED_MARKER__: graph generated=__GENERATED_AT__ -->
   <div class="graph-shell">
     <header class="graph-header">
       <div class="graph-header-main">
         <div class="title-block">
-          <h1>{html.escape(cfg.name, quote=False)} Documentation Graph</h1>
-          <p>Internal links, orphans and broken documentation references.</p>
+          <p class="eyebrow">docs-portal knowledge graph</p>
+          <h1>__GRAPH_HEADING__</h1>
+          <p>Explore how documents connect, find hubs, surface orphan pages, and spot broken references without leaving the generated portal.</p>
         </div>
         <div class="header-actions">
-          {'<span class="pill">' + generated_label + '</span>' if generated_label else ''}
-          <a class="button secondary" href="{html.escape(portal_href)}">Portal</a>
+          __GENERATED_BADGE__
+          <a class="button secondary" href="__PORTAL_HREF__">Portal</a>
         </div>
       </div>
     </header>
 
     <main class="graph-layout">
-      <section class="panel">
-        <div class="graph-toolbar">
-          <input id="graph-search" type="search" placeholder="Search documents..." aria-label="Search graph documents">
-          <div class="stats" id="graph-stats"></div>
+      <aside class="panel control-panel">
+        <h2>Explore</h2>
+        <input class="search-box" id="graph-search" type="search" placeholder="Search documents..." aria-label="Search graph documents">
+        <div class="metric-grid" id="graph-stats"></div>
+        <h3>Focus</h3>
+        <div class="filter-grid" id="graph-filters">
+          <button class="filter-button active" type="button" data-mode="all">All documents <span></span></button>
+          <button class="filter-button" type="button" data-mode="hubs">Hubs <span></span></button>
+          <button class="filter-button" type="button" data-mode="orphans">Orphans <span></span></button>
+          <button class="filter-button" type="button" data-mode="broken">Broken refs <span></span></button>
+        </div>
+        <h3>Communities</h3>
+        <div class="legend" id="community-legend"></div>
+      </aside>
+
+      <section class="panel graph-stage">
+        <div class="stage-toolbar">
+          <div class="stage-title">
+            <strong>Interactive graph</strong>
+            <span>Drag nodes, search, or select a community to inspect the structure.</span>
+          </div>
+          <div class="stage-actions">
+            <button class="ghost-button" type="button" id="reset-view">Reset view</button>
+            <button class="ghost-button" type="button" id="toggle-labels">Labels on</button>
+          </div>
         </div>
         <div class="graph-canvas">
           <svg id="graph-svg" viewBox="0 0 1200 720" role="img" aria-label="Documentation link graph"></svg>
+          <div class="status-strip" id="graph-status"></div>
         </div>
       </section>
+
       <aside class="panel side-panel" aria-live="polite">
         <h2>Selected Document</h2>
         <div id="selected-doc" class="empty">Select a node to inspect it.</div>
+        <h3>Connections</h3>
+        <div id="selected-connections" class="connection-grid"></div>
         <h3>Broken Links</h3>
         <ul id="broken-links" class="list"></ul>
         <h3>Orphan Documents</h3>
@@ -1724,64 +1895,146 @@ def render_docs_graph_html(graph: dict) -> str:
     </main>
   </div>
 
-  <script type="application/json" id="graph-data">{graph_json}</script>
+  <script type="application/json" id="graph-data">__GRAPH_JSON__</script>
   <script>
     const graph = JSON.parse(document.getElementById('graph-data').textContent);
     const svg = document.getElementById('graph-svg');
     const search = document.getElementById('graph-search');
     const selectedDoc = document.getElementById('selected-doc');
+    const selectedConnections = document.getElementById('selected-connections');
     const stats = document.getElementById('graph-stats');
+    const statusStrip = document.getElementById('graph-status');
     const brokenLinks = document.getElementById('broken-links');
     const orphanDocs = document.getElementById('orphan-docs');
-    const nodeById = new Map(graph.nodes.map(function (node) {{ return [node.id, node]; }}));
+    const legend = document.getElementById('community-legend');
+    const filters = Array.from(document.querySelectorAll('[data-mode]'));
+    const resetView = document.getElementById('reset-view');
+    const toggleLabels = document.getElementById('toggle-labels');
+    const nodeById = new Map(graph.nodes.map(function (node) { return [node.id, node]; }));
     const nodeElements = new Map();
+    const labelElements = new Map();
     const edgeElements = [];
+    const palette = ['#60a5fa', '#34d399', '#f472b6', '#f59e0b', '#a78bfa', '#22d3ee', '#fb7185', '#84cc16'];
+    const chapters = Array.from(new Set(graph.nodes.map(function (node) { return node.chapter; })));
+    const colorByChapter = new Map(chapters.map(function (chapter, index) {
+      return [chapter, palette[index % palette.length]];
+    }));
+    const incomingByNode = new Map();
+    const outgoingByNode = new Map();
+    let activeMode = 'all';
+    let labelsVisible = true;
     let selectedId = graph.nodes[0] ? graph.nodes[0].id : '';
 
-    function escapeHtml(value) {{
-      return String(value).replace(/[&<>"']/g, function (char) {{
-        return {{
+    graph.nodes.forEach(function (node) {
+      node.vx = 0;
+      node.vy = 0;
+      node.radius = 12 + Math.min(12, Math.sqrt((node.incoming || 0) + (node.outgoing || 0)) * 4);
+      incomingByNode.set(node.id, []);
+      outgoingByNode.set(node.id, []);
+    });
+    graph.edges.forEach(function (edge) {
+      if (outgoingByNode.has(edge.source)) outgoingByNode.get(edge.source).push(edge);
+      if (incomingByNode.has(edge.target)) incomingByNode.get(edge.target).push(edge);
+    });
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, function (char) {
+        return {
           '&': '&amp;',
           '<': '&lt;',
           '>': '&gt;',
           '"': '&quot;',
           "'": '&#39;'
-        }}[char];
-      }});
-    }}
+        }[char];
+      });
+    }
 
-    function svgEl(name, attrs) {{
+    function svgEl(name, attrs) {
       const element = document.createElementNS('http://www.w3.org/2000/svg', name);
-      Object.entries(attrs || {{}}).forEach(function (entry) {{
+      Object.entries(attrs || {}).forEach(function (entry) {
         element.setAttribute(entry[0], entry[1]);
-      }});
+      });
       return element;
-    }}
+    }
 
-    function pill(label, value) {{
-      return '<span class="pill">' + escapeHtml(label) + ': ' + escapeHtml(value) + '</span>';
-    }}
+    function metric(label, value) {
+      return '<div class="metric"><strong>' + escapeHtml(value) + '</strong><span>' + escapeHtml(label) + '</span></div>';
+    }
 
-    function renderStats() {{
+    function renderStats() {
       stats.innerHTML = [
-        pill('Docs', graph.stats.nodes),
-        pill('Links', graph.stats.edges),
-        pill('Broken', graph.stats.brokenLinks),
-        pill('Orphans', graph.stats.orphans)
+        metric('Documents', graph.stats.nodes),
+        metric('Links', graph.stats.edges),
+        metric('Broken', graph.stats.brokenLinks),
+        metric('Orphans', graph.stats.orphans)
       ].join('');
-    }}
+      statusStrip.innerHTML = [
+        '<span class="pill">Nodes: ' + graph.stats.nodes + '</span>',
+        '<span class="pill">Edges: ' + graph.stats.edges + '</span>',
+        '<span class="pill">Communities: ' + chapters.length + '</span>'
+      ].join('');
+      const modeCounts = {
+        all: graph.nodes.length,
+        hubs: graph.nodes.filter(function (node) { return node.outgoing > 1 || node.incoming > 1; }).length,
+        orphans: graph.orphans.length,
+        broken: new Set(graph.brokenLinks.map(function (link) { return link.source; })).size
+      };
+      filters.forEach(function (button) {
+        const span = button.querySelector('span');
+        if (span) span.textContent = modeCounts[button.dataset.mode] || 0;
+      });
+    }
 
-    function selectNode(id) {{
+    function renderLegend() {
+      legend.innerHTML = chapters.map(function (chapter) {
+        return '<button class="filter-button" type="button" data-chapter="' + escapeHtml(chapter) + '">' +
+          '<span><i class="legend-dot" style="background:' + colorByChapter.get(chapter) + '"></i>' + escapeHtml(chapter) + '</span>' +
+          '<span>' + graph.nodes.filter(function (node) { return node.chapter === chapter; }).length + '</span>' +
+          '</button>';
+      }).join('');
+      legend.querySelectorAll('[data-chapter]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          search.value = button.dataset.chapter;
+          activeMode = 'all';
+          filters.forEach(function (item) { item.classList.toggle('active', item.dataset.mode === 'all'); });
+          applyFilters();
+        });
+      });
+    }
+
+    function visibleByMode(node) {
+      if (activeMode === 'hubs') return node.outgoing > 1 || node.incoming > 1;
+      if (activeMode === 'orphans') return graph.orphans.includes(node.id);
+      if (activeMode === 'broken') return graph.brokenLinks.some(function (link) { return link.source === node.id; });
+      return true;
+    }
+
+    function neighborsOf(id) {
+      const result = new Set([id]);
+      (incomingByNode.get(id) || []).forEach(function (edge) { result.add(edge.source); });
+      (outgoingByNode.get(id) || []).forEach(function (edge) { result.add(edge.target); });
+      return result;
+    }
+
+    function selectNode(id) {
       selectedId = id;
-      nodeElements.forEach(function (element, nodeId) {{
+      const neighborhood = neighborsOf(id);
+      nodeElements.forEach(function (element, nodeId) {
         element.classList.toggle('selected', nodeId === id);
-      }});
+        element.classList.toggle('dim', selectedId && !neighborhood.has(nodeId));
+      });
+      edgeElements.forEach(function (edge) {
+        const inNeighborhood = edge.source === id || edge.target === id;
+        edge.element.classList.toggle('neighborhood', inNeighborhood);
+        edge.element.classList.toggle('dim', selectedId && !inNeighborhood);
+      });
       const node = nodeById.get(id);
-      if (!node) {{
+      if (!node) {
         selectedDoc.textContent = 'Select a node to inspect it.';
         selectedDoc.className = 'empty';
+        selectedConnections.innerHTML = '';
         return;
-      }}
+      }
       selectedDoc.className = '';
       selectedDoc.innerHTML =
         '<p class="doc-title">' + escapeHtml(node.title) + '</p>' +
@@ -1789,12 +2042,23 @@ def render_docs_graph_html(graph: dict) -> str:
         '<p class="doc-summary">' + escapeHtml(node.summary) + '</p>' +
         '<p class="doc-meta">Incoming: ' + node.incoming + ' · Outgoing: ' + node.outgoing + '</p>' +
         '<a class="button" href="' + escapeHtml(node.url) + '">Open document</a>';
-    }}
+      const rows = [
+        ...(outgoingByNode.get(id) || []).map(function (edge) {
+          const target = nodeById.get(edge.target);
+          return '<div class="connection-card"><strong>→ ' + escapeHtml(target ? target.title : edge.target) + '</strong><span>' + escapeHtml(edge.label || 'links to') + '</span></div>';
+        }),
+        ...(incomingByNode.get(id) || []).map(function (edge) {
+          const source = nodeById.get(edge.source);
+          return '<div class="connection-card"><strong>← ' + escapeHtml(source ? source.title : edge.source) + '</strong><span>' + escapeHtml(edge.label || 'linked from') + '</span></div>';
+        })
+      ];
+      selectedConnections.innerHTML = rows.length ? rows.join('') : '<p class="empty">No internal graph connections.</p>';
+    }
 
-    function renderGraph() {{
+    function renderGraph() {
       svg.innerHTML = '';
       const defs = svgEl('defs');
-      const marker = svgEl('marker', {{
+      const marker = svgEl('marker', {
         id: 'arrow',
         markerWidth: '10',
         markerHeight: '10',
@@ -1802,114 +2066,225 @@ def render_docs_graph_html(graph: dict) -> str:
         refY: '3',
         orient: 'auto',
         markerUnits: 'strokeWidth'
-      }});
-      marker.appendChild(svgEl('path', {{ d: 'M0,0 L0,6 L9,3 z', fill: '#98a2b3' }}));
+      });
+      marker.appendChild(svgEl('path', { d: 'M0,0 L0,6 L9,3 z', fill: '#94a3b8' }));
       defs.appendChild(marker);
       svg.appendChild(defs);
 
-      graph.edges.forEach(function (edge) {{
+      graph.edges.forEach(function (edge) {
         const source = nodeById.get(edge.source);
         const target = nodeById.get(edge.target);
         if (!source || !target) return;
-        const line = svgEl('line', {{
+        const path = svgEl('path', {
           class: 'edge',
-          x1: source.x,
-          y1: source.y,
-          x2: target.x,
-          y2: target.y,
           'marker-end': 'url(#arrow)'
-        }});
-        svg.appendChild(line);
-        edgeElements.push({{ element: line, source: edge.source, target: edge.target }});
-      }});
+        });
+        svg.appendChild(path);
+        edgeElements.push({ element: path, source: edge.source, target: edge.target });
+      });
 
-      graph.nodes.forEach(function (node) {{
-        const group = svgEl('g', {{ class: 'node', tabindex: '0' }});
+      graph.nodes.forEach(function (node) {
+        const group = svgEl('g', { class: 'node', tabindex: '0' });
         group.dataset.nodeId = node.id;
-        group.appendChild(svgEl('circle', {{ cx: node.x, cy: node.y, r: '15' }}));
-        const label = svgEl('text', {{ x: node.x + 22, y: node.y - 2 }});
+        group.appendChild(svgEl('circle', { r: node.radius, fill: colorByChapter.get(node.chapter) || '#60a5fa' }));
+        const label = svgEl('text', { x: node.radius + 8, y: -2 });
         label.textContent = node.title;
         group.appendChild(label);
-        const type = svgEl('text', {{ class: 'node-type', x: node.x + 22, y: node.y + 14 }});
+        const type = svgEl('text', { class: 'node-type', x: node.radius + 8, y: 14 });
         type.textContent = node.chapter;
         group.appendChild(type);
-        group.addEventListener('click', function () {{ selectNode(node.id); }});
-        group.addEventListener('keydown', function (event) {{
-          if (event.key === 'Enter' || event.key === ' ') {{
+        labelElements.set(node.id, [label, type]);
+        group.addEventListener('click', function () { selectNode(node.id); });
+        group.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             selectNode(node.id);
-          }}
-        }});
+          }
+        });
+        group.addEventListener('pointerdown', function (event) {
+          node.dragging = true;
+          group.setPointerCapture(event.pointerId);
+        });
+        group.addEventListener('pointermove', function (event) {
+          if (!node.dragging) return;
+          const point = svg.createSVGPoint();
+          point.x = event.clientX;
+          point.y = event.clientY;
+          const cursor = point.matrixTransform(svg.getScreenCTM().inverse());
+          node.x = cursor.x;
+          node.y = cursor.y;
+          node.vx = 0;
+          node.vy = 0;
+          tick();
+        });
+        group.addEventListener('pointerup', function (event) {
+          node.dragging = false;
+          group.releasePointerCapture(event.pointerId);
+        });
         svg.appendChild(group);
         nodeElements.set(node.id, group);
-      }});
+      });
+      settleGraph(140);
       if (selectedId) selectNode(selectedId);
-    }}
+    }
 
-    function renderList(element, rows, emptyText, renderItem) {{
-      if (!rows.length) {{
+    function tick() {
+      graph.edges.forEach(function (edge, index) {
+        const source = nodeById.get(edge.source);
+        const target = nodeById.get(edge.target);
+        const edgeView = edgeElements[index];
+        if (!source || !target || !edgeView) return;
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const cx = (source.x + target.x) / 2 - dy * .08;
+        const cy = (source.y + target.y) / 2 + dx * .08;
+        edgeView.element.setAttribute('d', 'M' + source.x + ',' + source.y + ' Q' + cx + ',' + cy + ' ' + target.x + ',' + target.y);
+      });
+      graph.nodes.forEach(function (node) {
+        const element = nodeElements.get(node.id);
+        if (element) element.setAttribute('transform', 'translate(' + node.x + ' ' + node.y + ')');
+      });
+    }
+
+    function settleGraph(iterations) {
+      const width = 1200;
+      const height = 720;
+      for (let step = 0; step < iterations; step += 1) {
+        for (let i = 0; i < graph.nodes.length; i += 1) {
+          const a = graph.nodes[i];
+          for (let j = i + 1; j < graph.nodes.length; j += 1) {
+            const b = graph.nodes[j];
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let distance = Math.sqrt(dx * dx + dy * dy) || 1;
+            const force = 2600 / (distance * distance);
+            dx /= distance;
+            dy /= distance;
+            if (!a.dragging) { a.vx -= dx * force; a.vy -= dy * force; }
+            if (!b.dragging) { b.vx += dx * force; b.vy += dy * force; }
+          }
+        }
+        graph.edges.forEach(function (edge) {
+          const source = nodeById.get(edge.source);
+          const target = nodeById.get(edge.target);
+          if (!source || !target) return;
+          const dx = target.x - source.x;
+          const dy = target.y - source.y;
+          const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+          const pull = (distance - 180) * .006;
+          const fx = (dx / distance) * pull;
+          const fy = (dy / distance) * pull;
+          if (!source.dragging) { source.vx += fx; source.vy += fy; }
+          if (!target.dragging) { target.vx -= fx; target.vy -= fy; }
+        });
+        graph.nodes.forEach(function (node) {
+          if (!node.dragging) {
+            node.vx += (width / 2 - node.x) * .002;
+            node.vy += (height / 2 - node.y) * .002;
+            node.x = Math.max(42, Math.min(width - 42, node.x + node.vx));
+            node.y = Math.max(42, Math.min(height - 42, node.y + node.vy));
+            node.vx *= .82;
+            node.vy *= .82;
+          }
+        });
+      }
+      tick();
+    }
+
+    function renderList(element, rows, emptyText, renderItem) {
+      if (!rows.length) {
         element.innerHTML = '<li class="empty">' + emptyText + '</li>';
         return;
-      }}
+      }
       element.innerHTML = rows.map(renderItem).join('');
-    }}
+    }
 
-    function renderSideLists() {{
+    function renderSideLists() {
       renderList(
         brokenLinks,
         graph.brokenLinks,
         'No broken document links found.',
-        function (link) {{
+        function (link) {
           const source = nodeById.get(link.source);
           const sourceTitle = source ? source.title : link.source;
           return '<li><strong>' + escapeHtml(sourceTitle) + '</strong><small>' + escapeHtml(link.target) + '</small></li>';
-        }}
+        }
       );
       renderList(
         orphanDocs,
         graph.orphans,
         'No orphan documents found.',
-        function (id) {{
+        function (id) {
           const node = nodeById.get(id);
           const title = node ? node.title : id;
           return '<li><a href="#" data-node-id="' + escapeHtml(id) + '">' + escapeHtml(title) + '</a><small>' + escapeHtml(id) + '</small></li>';
-        }}
+        }
       );
-      orphanDocs.querySelectorAll('[data-node-id]').forEach(function (link) {{
-        link.addEventListener('click', function (event) {{
+      orphanDocs.querySelectorAll('[data-node-id]').forEach(function (link) {
+        link.addEventListener('click', function (event) {
           event.preventDefault();
           selectNode(link.dataset.nodeId);
-        }});
-      }});
-    }}
+        });
+      });
+    }
 
-    function applySearch() {{
+    function applySearch() {
       const query = search.value.trim().toLowerCase();
       const visible = new Set();
-      graph.nodes.forEach(function (node) {{
+      graph.nodes.forEach(function (node) {
         const haystack = [node.title, node.id, node.chapter, node.kind, node.summary].join(' ').toLowerCase();
-        const match = !query || haystack.includes(query);
+        const match = visibleByMode(node) && (!query || haystack.includes(query));
         if (match) visible.add(node.id);
         const element = nodeElements.get(node.id);
         if (element) element.classList.toggle('hidden', !match);
-      }});
-      edgeElements.forEach(function (edge) {{
+      });
+      edgeElements.forEach(function (edge) {
         edge.element.classList.toggle(
           'hidden',
           !visible.has(edge.source) || !visible.has(edge.target)
         );
-      }});
-    }}
+      });
+    }
 
     renderStats();
+    renderLegend();
     renderGraph();
     renderSideLists();
     applySearch();
     search.addEventListener('input', applySearch);
+    filters.forEach(function (button) {
+      button.addEventListener('click', function () {
+        activeMode = button.dataset.mode;
+        filters.forEach(function (item) { item.classList.toggle('active', item === button); });
+        applySearch();
+      });
+    });
+    resetView.addEventListener('click', function () {
+      selectedId = graph.nodes[0] ? graph.nodes[0].id : '';
+      settleGraph(220);
+      applySearch();
+      if (selectedId) selectNode(selectedId);
+    });
+    toggleLabels.addEventListener('click', function () {
+      labelsVisible = !labelsVisible;
+      toggleLabels.textContent = labelsVisible ? 'Labels on' : 'Labels off';
+      labelElements.forEach(function (labels) {
+        labels.forEach(function (label) { label.style.display = labelsVisible ? '' : 'none'; });
+      });
+    });
   </script>
 </body>
 </html>
 """
+    return (
+        page.replace("__GRAPH_TITLE__", f"{html.escape(cfg.name, quote=False)} Documentation Graph")
+        .replace("__GRAPH_HEADING__", f"{html.escape(cfg.name, quote=False)} Graph")
+        .replace("__GENERATED_MARKER__", GENERATED_MARKER)
+        .replace("__GENERATED_AT__", html.escape(generated_at))
+        .replace("__GENERATED_BADGE__", generated_badge)
+        .replace("__PORTAL_HREF__", html.escape(portal_href))
+        .replace("__GRAPH_JSON__", graph_json)
+    )
 
 
 def write_docs_graph_json(graph: dict) -> str:
