@@ -1904,7 +1904,7 @@ __THEME_CSS__
     const outgoingByNode = new Map();
     let activeMode = 'all';
     let labelsVisible = true;
-    let selectedId = graph.nodes[0] ? graph.nodes[0].id : '';
+    let selectedId = '';
 
     graph.nodes.forEach(function (node) {
       node.vx = 0;
@@ -1995,6 +1995,19 @@ __THEME_CSS__
       (incomingByNode.get(id) || []).forEach(function (edge) { result.add(edge.source); });
       (outgoingByNode.get(id) || []).forEach(function (edge) { result.add(edge.target); });
       return result;
+    }
+
+    function clearSelection() {
+      selectedId = '';
+      nodeElements.forEach(function (element) {
+        element.classList.remove('selected', 'dim');
+      });
+      edgeElements.forEach(function (edge) {
+        edge.element.classList.remove('neighborhood', 'dim');
+      });
+      selectedDoc.textContent = 'Select a node to inspect it.';
+      selectedDoc.className = 'empty';
+      selectedConnections.innerHTML = '';
     }
 
     function selectNode(id) {
@@ -2106,7 +2119,7 @@ __THEME_CSS__
         nodeElements.set(node.id, group);
       });
       settleGraph(140);
-      if (selectedId) selectNode(selectedId);
+      clearSelection();
     }
 
     function tick() {
@@ -2241,10 +2254,9 @@ __THEME_CSS__
       });
     });
     resetView.addEventListener('click', function () {
-      selectedId = graph.nodes[0] ? graph.nodes[0].id : '';
       settleGraph(220);
       applySearch();
-      if (selectedId) selectNode(selectedId);
+      clearSelection();
     });
     toggleLabels.addEventListener('click', function () {
       labelsVisible = !labelsVisible;
