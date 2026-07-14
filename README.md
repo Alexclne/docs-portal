@@ -9,7 +9,7 @@ client-side full-text search. Output pages are **self-contained** (CSS and image
 inlined), so they work offline and can be copied or emailed as standalone files.
 
 ```bash
-pip install docs-portal        # (see Installation for git/pipx/uvx)
+pipx install "git+https://github.com/Alexclne/docs-portal.git"
 cd my-docs
 docs-portal init               # auto-detects chapters from your folders
 docs-portal                    # generates the HTML portal
@@ -34,21 +34,20 @@ docs-portal                    # generates the HTML portal
 
 ## Installation
 
-```bash
-# One-off run without installing (recommended)
-uvx docs-portal --help
+Until `docs-portal` is published on PyPI, install it directly from GitHub.
 
-# Isolated install
-pipx install docs-portal
+```bash
+# Isolated install (recommended)
+pipx install "git+https://github.com/Alexclne/docs-portal.git"
 
 # Into a virtual environment
-pip install docs-portal
+python -m pip install "git+https://github.com/Alexclne/docs-portal.git"
 ```
 
-Installing directly from a Git repository (until published on PyPI):
+To upgrade an existing `pipx` install:
 
 ```bash
-pipx install "git+https://github.com/USER/docs-portal.git"
+pipx upgrade docs-portal
 ```
 
 ## Quick start

@@ -5,12 +5,15 @@ a couple of minutes.
 
 ## 1. Install
 
-`docs-portal` needs **Python 3.11+**. Pick one:
+`docs-portal` needs **Python 3.11+**. Until it is published on PyPI, install it
+directly from GitHub:
 
 ```bash
-uvx docs-portal --help          # run once, nothing installed
-pipx install docs-portal        # isolated, global `docs-portal` command
-pip install docs-portal         # into the active virtual environment
+# Isolated install (recommended)
+pipx install "git+https://github.com/Alexclne/docs-portal.git"
+
+# Into the active virtual environment
+python -m pip install "git+https://github.com/Alexclne/docs-portal.git"
 ```
 
 Its dependencies (`markdown-it-py`, `mdit-py-plugins`) are installed automatically.
