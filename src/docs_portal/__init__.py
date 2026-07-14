@@ -1548,60 +1548,38 @@ def render_docs_graph_html(graph: dict) -> str:
         else ""
     )
     portal_href = PORTAL.relative_to(ROOT).as_posix()
+    favicon_link = (
+        f'\n  <link rel="icon" href="{html.escape(cfg.favicon_href, quote=True)}">'
+        if cfg.favicon_href
+        else ""
+    )
+    theme_css = render_theme_css(cfg)
     page = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>__GRAPH_TITLE__</title>
+  <title>__GRAPH_TITLE__</title>__FAVICON_LINK__
   <style>
-    :root {
-      --bg: #070a13;
-      --panel: rgba(15, 23, 42, .82);
-      --panel-solid: #0f172a;
-      --panel-soft: rgba(30, 41, 59, .62);
-      --ink: #e5edf8;
-      --muted: #94a3b8;
-      --line: rgba(148, 163, 184, .18);
-      --accent: #60a5fa;
-      --accent-strong: #38bdf8;
-      --good: #34d399;
-      --warn: #f59e0b;
-      --bad: #fb7185;
-      --shadow: 0 24px 80px rgba(0, 0, 0, .38);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background:
-        radial-gradient(circle at 12% 8%, rgba(56, 189, 248, .16), transparent 28%),
-        radial-gradient(circle at 86% 12%, rgba(168, 85, 247, .14), transparent 30%),
-        linear-gradient(135deg, #060914 0%, #0b1020 44%, #111827 100%);
+__COMMON_CSS__
+__THEME_CSS__
+    body.graph-page {
+      background: var(--bg);
       color: var(--ink);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-        "Segoe UI", sans-serif;
     }
-    a { color: var(--accent-strong); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .graph-shell { min-height: 100vh; padding: 18px; }
+    .graph-shell {
+      max-width: 1440px;
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+    }
     .graph-header {
       border: 1px solid var(--line);
-      background: linear-gradient(135deg, rgba(15, 23, 42, .92), rgba(30, 41, 59, .74));
-      border-radius: 18px;
+      background: var(--panel);
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      margin-bottom: 16px;
+      margin-bottom: 20px;
       padding: 18px;
-      position: relative;
-      overflow: hidden;
-    }
-    .graph-header::after {
-      background: linear-gradient(90deg, transparent, rgba(96, 165, 250, .2), transparent);
-      content: "";
-      height: 1px;
-      left: 0;
-      position: absolute;
-      right: 0;
-      top: 0;
     }
     .graph-header-main {
       align-items: center;
@@ -1610,85 +1588,73 @@ def render_docs_graph_html(graph: dict) -> str:
       justify-content: space-between;
     }
     .eyebrow {
-      color: var(--accent-strong);
+      color: var(--blue);
       font-size: 12px;
       font-weight: 800;
-      letter-spacing: .08em;
+      letter-spacing: .07em;
       margin: 0 0 6px;
       text-transform: uppercase;
     }
-    .title-block h1 { font-size: clamp(26px, 4vw, 44px); line-height: 1; margin: 0; }
-    .title-block p { color: var(--muted); line-height: 1.5; margin: 8px 0 0; max-width: 780px; }
-    .header-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
-    .button {
-      align-items: center;
-      background: linear-gradient(135deg, #2563eb, #06b6d4);
-      border: 1px solid rgba(125, 211, 252, .48);
-      border-radius: 999px;
-      color: #fff;
-      display: inline-flex;
-      font-weight: 700;
-      min-height: 38px;
-      padding: 8px 14px;
-      box-shadow: 0 12px 28px rgba(37, 99, 235, .24);
-    }
-    .button.secondary {
-      background: rgba(15, 23, 42, .56);
-      border-color: rgba(148, 163, 184, .24);
-      box-shadow: none;
+    .title-block h1 {
       color: var(--ink);
+      font-size: 30px;
+      line-height: 1.15;
+      margin: 0;
     }
-    .pill {
-      background: rgba(15, 23, 42, .62);
-      border: 1px solid rgba(148, 163, 184, .2);
-      border-radius: 999px;
+    .title-block p {
       color: var(--muted);
-      display: inline-flex;
-      font-size: 12px;
-      font-weight: 700;
-      padding: 6px 10px;
-      white-space: nowrap;
+      line-height: 1.5;
+      margin: 8px 0 0;
+      max-width: 780px;
     }
+    .header-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
     .graph-layout {
       display: grid;
-      gap: 18px;
+      gap: 20px;
       grid-template-columns: 300px minmax(0, 1fr) 360px;
       width: 100%;
     }
-    .panel {
+    .graph-page .panel {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      backdrop-filter: blur(18px);
       overflow: hidden;
     }
     .control-panel, .side-panel { padding: 16px; }
     .control-panel h2, .side-panel h2 {
-      font-size: 15px;
+      border: 0;
+      color: #64748b;
+      font-size: 13px;
+      letter-spacing: .07em;
       margin: 0 0 12px;
+      padding: 0;
       text-transform: uppercase;
     }
     .control-panel h3, .side-panel h3 {
       border-top: 1px solid var(--line);
-      color: var(--muted);
+      color: #64748b;
       font-size: 12px;
+      letter-spacing: .06em;
       margin: 16px 0 10px;
       padding-top: 14px;
       text-transform: uppercase;
     }
     .search-box {
-      background: rgba(2, 6, 23, .72);
+      background: #fff;
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 6px;
       color: var(--ink);
       font: inherit;
-      min-height: 42px;
+      min-height: 40px;
       outline: none;
       padding: 10px 12px;
       width: 100%;
     }
-    .search-box:focus { border-color: rgba(96, 165, 250, .72); box-shadow: 0 0 0 3px rgba(96, 165, 250, .12); }
+    .search-box:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, .14);
+    }
     .metric-grid {
       display: grid;
       gap: 8px;
@@ -1696,9 +1662,9 @@ def render_docs_graph_html(graph: dict) -> str:
       margin-top: 12px;
     }
     .metric {
-      background: rgba(15, 23, 42, .72);
+      background: var(--gray-light);
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: var(--radius);
       padding: 10px;
     }
     .metric strong { color: var(--ink); display: block; font-size: 22px; line-height: 1; }
@@ -1706,9 +1672,9 @@ def render_docs_graph_html(graph: dict) -> str:
     .filter-grid, .legend { display: grid; gap: 8px; }
     .filter-button {
       align-items: center;
-      background: rgba(15, 23, 42, .6);
+      background: #fff;
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 6px;
       color: var(--ink);
       cursor: pointer;
       display: flex;
@@ -1718,9 +1684,14 @@ def render_docs_graph_html(graph: dict) -> str:
       text-align: left;
       width: 100%;
     }
+    .filter-button:hover {
+      border-color: var(--blue-mid);
+      background: var(--blue-bg);
+    }
     .filter-button.active {
-      background: rgba(37, 99, 235, .2);
-      border-color: rgba(96, 165, 250, .54);
+      background: var(--blue-bg);
+      border-color: var(--blue);
+      color: var(--blue);
     }
     .legend-dot { border-radius: 50%; display: inline-block; height: 10px; margin-right: 8px; width: 10px; }
     .graph-stage { min-height: calc(100vh - 164px); position: relative; }
@@ -1737,16 +1708,23 @@ def render_docs_graph_html(graph: dict) -> str:
     .stage-title span { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
     .stage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .ghost-button {
-      background: rgba(15, 23, 42, .6);
+      background: #fff;
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: 6px;
       color: var(--ink);
       cursor: pointer;
       font-weight: 700;
       min-height: 34px;
       padding: 7px 10px;
     }
+    .ghost-button:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: var(--blue-bg);
+    }
     .graph-canvas {
+      background: #fff;
+      border-top: 1px solid var(--line);
       height: calc(100% - 64px);
       min-height: 620px;
       overflow: hidden;
@@ -1754,43 +1732,41 @@ def render_docs_graph_html(graph: dict) -> str:
     }
     .graph-canvas::before {
       background-image:
-        linear-gradient(rgba(148, 163, 184, .08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(148, 163, 184, .08) 1px, transparent 1px);
+        linear-gradient(#eef2f7 1px, transparent 1px),
+        linear-gradient(90deg, #eef2f7 1px, transparent 1px);
       background-size: 42px 42px;
       content: "";
       inset: 0;
-      mask-image: radial-gradient(circle, black 34%, transparent 76%);
-      opacity: .42;
+      opacity: .82;
       pointer-events: none;
       position: absolute;
     }
     svg { display: block; height: 100%; min-height: 620px; position: relative; width: 100%; z-index: 1; }
     .edge {
       fill: none;
-      opacity: .62;
-      stroke: rgba(148, 163, 184, .44);
+      opacity: .72;
+      stroke: #94a3b8;
       stroke-width: 1.6;
     }
-    .edge.neighborhood { opacity: .95; stroke: rgba(125, 211, 252, .82); stroke-width: 2.4; }
+    .edge.neighborhood { opacity: .95; stroke: var(--blue); stroke-width: 2.4; }
     .node { cursor: pointer; }
     .node circle {
       cursor: pointer;
-      filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .34));
-      stroke: rgba(255, 255, 255, .72);
+      stroke: #fff;
       stroke-width: 1.5;
     }
     .node text {
-      fill: #dbeafe;
+      fill: var(--ink);
       font-size: 12px;
       font-weight: 800;
       paint-order: stroke;
       pointer-events: none;
-      stroke: rgba(2, 6, 23, .84);
+      stroke: #fff;
       stroke-linejoin: round;
       stroke-width: 4px;
     }
     .node .node-type { fill: var(--muted); font-size: 10px; font-weight: 700; }
-    .node.selected circle { filter: drop-shadow(0 0 22px rgba(96, 165, 250, .76)); stroke-width: 4; }
+    .node.selected circle { stroke: var(--blue); stroke-width: 4; }
     .node.dim, .edge.dim { opacity: .13; }
     .node.hidden, .edge.hidden { display: none; }
     .status-strip {
@@ -1806,23 +1782,28 @@ def render_docs_graph_html(graph: dict) -> str:
     .doc-meta, .doc-summary { color: var(--muted); line-height: 1.5; margin: 0 0 10px; }
     .connection-grid { display: grid; gap: 8px; }
     .connection-card {
-      background: rgba(15, 23, 42, .62);
+      background: var(--gray-light);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--radius);
       padding: 9px 10px;
     }
     .connection-card strong { display: block; font-size: 13px; }
     .connection-card span { color: var(--muted); display: block; font-size: 12px; margin-top: 3px; }
     .list { display: grid; gap: 8px; margin: 0; padding: 0; }
     .list li {
-      background: rgba(15, 23, 42, .58);
+      background: var(--gray-light);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--radius);
       list-style: none;
       padding: 9px 10px;
     }
     .list small { color: var(--muted); display: block; margin-top: 2px; }
-    .empty { color: var(--muted); font-size: 13px; }
+    .graph-page .empty {
+      color: var(--muted);
+      display: block;
+      font-size: 13px;
+      padding: 0;
+    }
     @media (max-width: 980px) {
       .graph-shell { padding: 12px; }
       .graph-header-main, .stage-toolbar { align-items: flex-start; flex-direction: column; }
@@ -1832,7 +1813,7 @@ def render_docs_graph_html(graph: dict) -> str:
     }
   </style>
 </head>
-<body>
+<body class="graph-page">
   <!-- __GENERATED_MARKER__: graph generated=__GENERATED_AT__ -->
   <div class="graph-shell">
     <header class="graph-header">
@@ -1914,7 +1895,7 @@ def render_docs_graph_html(graph: dict) -> str:
     const nodeElements = new Map();
     const labelElements = new Map();
     const edgeElements = [];
-    const palette = ['#60a5fa', '#34d399', '#f472b6', '#f59e0b', '#a78bfa', '#22d3ee', '#fb7185', '#84cc16'];
+    const palette = ['#1d4ed8', '#15803d', '#c2410c', '#64748b', '#b91c1c', '#0f766e', '#475569', '#92400e'];
     const chapters = Array.from(new Set(graph.nodes.map(function (node) { return node.chapter; })));
     const colorByChapter = new Map(chapters.map(function (chapter, index) {
       return [chapter, palette[index % palette.length]];
@@ -2279,6 +2260,9 @@ def render_docs_graph_html(graph: dict) -> str:
     return (
         page.replace("__GRAPH_TITLE__", f"{html.escape(cfg.name, quote=False)} Documentation Graph")
         .replace("__GRAPH_HEADING__", f"{html.escape(cfg.name, quote=False)} Graph")
+        .replace("__FAVICON_LINK__", favicon_link)
+        .replace("__COMMON_CSS__", common_css())
+        .replace("__THEME_CSS__", theme_css)
         .replace("__GENERATED_MARKER__", GENERATED_MARKER)
         .replace("__GENERATED_AT__", html.escape(generated_at))
         .replace("__GENERATED_BADGE__", generated_badge)
