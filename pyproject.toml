@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docs-portal"
+version = "0.1.0"
+description = "Genera un portale di documentazione HTML statico da una cartella di Markdown, senza dipendenze."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "docs-portal contributors" }]
+keywords = ["documentation", "markdown", "static-site", "html"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Documentation",
+]
+dependencies = [
+    "markdown-it-py>=3",
+    "mdit-py-plugins>=0.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+docs-portal = "docs_portal:main"
+
+[project.urls]
+Homepage = "https://github.com/USER/docs-portal"
+Issues = "https://github.com/USER/docs-portal/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+docs_portal = ["*.css"]
