@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "docs-portal"
 version = "0.1.0"
-description = "Genera un portale di documentazione HTML statico da una cartella di Markdown, senza dipendenze."
+description = "Build a static, searchable HTML documentation portal from a folder of Markdown files."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -28,8 +28,8 @@ test = ["pytest>=7"]
 docs-portal = "docs_portal:main"
 
 [project.urls]
-Homepage = "https://github.com/USER/docs-portal"
-Issues = "https://github.com/USER/docs-portal/issues"
+Homepage = "https://github.com/Alexclne/docs-portal"
+Issues = "https://github.com/Alexclne/docs-portal/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

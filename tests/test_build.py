@@ -1,4 +1,4 @@
-"""Test della scrittura idempotente e del conteggio del build."""
+"""Tests for idempotent writes and build stats."""
 
 import docs_portal as dp
 
@@ -12,7 +12,7 @@ def test_write_if_changed(tmp_path):
 
 def test_build_stats_created_then_unchanged(tmp_path, monkeypatch):
     monkeypatch.setattr(dp, "ROOT", tmp_path)
-    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTAZIONE.html")
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
     monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
     (tmp_path / "a.md").write_text("# A\n\ntesto\n", encoding="utf-8")
 
@@ -26,21 +26,21 @@ def test_build_stats_created_then_unchanged(tmp_path, monkeypatch):
 
 def test_build_stats_skips_non_generated_html(tmp_path, monkeypatch):
     monkeypatch.setattr(dp, "ROOT", tmp_path)
-    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTAZIONE.html")
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
     monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
     (tmp_path / "b.md").write_text("# B\n", encoding="utf-8")
-    # HTML scritto a mano, senza marker -> deve essere saltato, non sovrascritto
-    manuale = tmp_path / "b.html"
-    manuale.write_text("<html>fatto a mano</html>", encoding="utf-8")
+    # Hand-written HTML without the marker should be skipped, not overwritten.
+    manual = tmp_path / "b.html"
+    manual.write_text("<html>hand written</html>", encoding="utf-8")
 
     _docs, stats = dp.build_markdown_docs(dp.walk_files(".md"))
     assert stats["skipped"] == 1
-    assert manuale.read_text(encoding="utf-8") == "<html>fatto a mano</html>"
+    assert manual.read_text(encoding="utf-8") == "<html>hand written</html>"
 
 
 def test_walk_excludes_hidden_and_named_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(dp, "ROOT", tmp_path)
-    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTAZIONE.html")
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
     (tmp_path / "keep.md").write_text("x", encoding="utf-8")
     for hidden in (".pytest_cache", ".git", "node_modules"):
         d = tmp_path / hidden

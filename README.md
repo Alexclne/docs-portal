@@ -57,16 +57,16 @@ cd path/to/your/docs
 
 docs-portal init        # writes docs-portal.toml (chapters detected from folders)
 docs-portal             # equivalent to `docs-portal build`
-open DOCUMENTAZIONE.html # macOS; use `xdg-open` on Linux
+open DOCUMENTATION.html  # macOS; use `xdg-open` on Linux
 ```
 
 To serve it locally:
 
 ```bash
-python -m http.server        # then open http://localhost:8000/DOCUMENTAZIONE.html
+python -m http.server        # then open http://localhost:8000/DOCUMENTATION.html
 ```
 
-> The default portal filename is `DOCUMENTAZIONE.html`. Use `--out index.html`
+> The default portal filename is `DOCUMENTATION.html`. Use `--out index.html`
 > if you plan to host it as a website.
 
 ## Configuration

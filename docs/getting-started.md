@@ -56,19 +56,19 @@ docs-portal            # same as: docs-portal build
 You will get:
 
 - one generated `*.html` next to each `*.md`
-- a portal index (`DOCUMENTAZIONE.html` by default) with search and navigation
+- a portal index (`DOCUMENTATION.html` by default) with search and navigation
 
 Open it:
 
 ```bash
-open DOCUMENTAZIONE.html          # macOS
-xdg-open DOCUMENTAZIONE.html      # Linux
+open DOCUMENTATION.html           # macOS
+xdg-open DOCUMENTATION.html       # Linux
 ```
 
 Or serve it:
 
 ```bash
-python -m http.server            # http://localhost:8000/DOCUMENTAZIONE.html
+python -m http.server            # http://localhost:8000/DOCUMENTATION.html
 ```
 
 ## 5. Iterate
@@ -77,8 +77,8 @@ Add or edit Markdown, then re-run `docs-portal`. The build report tells you
 exactly what changed:
 
 ```
-Riepilogo build
-  Markdown (12):   1 creati · 2 aggiornati · 9 invariati · 0 saltati
+Build summary
+  Markdown (12):   1 created · 2 updated · 9 unchanged · 0 skipped
   ...
 ```
 

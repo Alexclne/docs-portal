@@ -7,7 +7,7 @@ Thanks for your interest in improving `docs-portal`.
 Requires Python 3.11+.
 
 ```bash
-git clone https://github.com/USER/docs-portal.git
+git clone https://github.com/Alexclne/docs-portal.git
 cd docs-portal
 python -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate

@@ -1,4 +1,4 @@
-"""Test di classificazione, riassunti, config e auto-rilevamento."""
+"""Tests for classification, summaries, config and auto-detection."""
 
 from pathlib import Path
 
@@ -17,22 +17,22 @@ def test_rule_matches_operators():
     assert dp.rule_matches(rule, "a/b.md", "b.md", "md")
     assert dp.rule_matches(rule, "c/zeta.md", "zeta.md", "md")
     assert dp.rule_matches(rule, "c/r.md", "r.md", "md")
-    assert not dp.rule_matches(rule, "c/altro.md", "altro.md", "md")
+    assert not dp.rule_matches(rule, "c/other.md", "other.md", "md")
 
 
 def test_summary_matches_kind_is_and():
-    rule = {"contains": ["drafts/"], "kind": "HTML originale", "text": "ok"}
-    assert dp.summary_matches(rule, "drafts/f.html", "t", "HTML originale")
-    assert not dp.summary_matches(rule, "drafts/f.html", "t", "Markdown convertito")
+    rule = {"contains": ["drafts/"], "kind": "Original HTML", "text": "ok"}
+    assert dp.summary_matches(rule, "drafts/f.html", "t", "Original HTML")
+    assert not dp.summary_matches(rule, "drafts/f.html", "t", "Converted Markdown")
 
 
 def test_item_summary_fallback_to_chapter_description():
     item = dp.DocItem(
         title="X",
-        path=Path("ignoto/x.html"),
-        link=Path("ignoto/x.html"),
+        path=Path("unknown/x.html"),
+        link=Path("unknown/x.html"),
         source=None,
-        kind="HTML originale",
+        kind="Original HTML",
         chapter="other",
         generated=False,
     )
@@ -42,7 +42,7 @@ def test_item_summary_fallback_to_chapter_description():
 def test_load_config_missing_file_returns_defaults(tmp_path):
     cfg = dp.load_site_config(tmp_path / "assente.toml")
     assert cfg.name == "Documentation"
-    assert cfg.chapters == ()  # vuoto -> gli accessor useranno i default
+    assert cfg.chapters == ()  # empty -> accessors use the defaults
 
 
 def test_full_example_reproduces_defaults():
@@ -58,12 +58,12 @@ def test_detect_taxonomy(tmp_path):
     (tmp_path / "Guide" / "a.md").write_text("# a", encoding="utf-8")
     (tmp_path / "API").mkdir()
     (tmp_path / "API" / "b.html").write_text("<h1>b</h1>", encoding="utf-8")
-    (tmp_path / "vuota").mkdir()
+    (tmp_path / "empty").mkdir()
     (tmp_path / "README.md").write_text("# home", encoding="utf-8")
 
     chapters, rules = dp.detect_taxonomy(tmp_path)
     keys = [key for key, _title, _desc in chapters]
-    assert "overview" in keys  # documenti in radice
+    assert "overview" in keys  # documents in the root
     assert "guide" in keys and "api" in keys
-    assert "vuota" not in keys  # cartella senza documenti ignorata
+    assert "empty" not in keys  # folder without documents is ignored
     assert any(r["chapter"] == "guide" and "guide" in r["startswith"] for r in rules)

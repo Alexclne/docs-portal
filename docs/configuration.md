@@ -125,7 +125,7 @@ Path/title conditions are combined with **OR**; `kind`, if present, with **AND**
 | `contains` | substrings in the file path |
 | `endswith` | suffixes of the file path |
 | `title_contains` | substrings in the document title |
-| `kind` | the document kind (e.g. `"HTML originale"` for hand-written HTML) |
+| `kind` | the document kind (e.g. `"Original HTML"` for hand-written HTML) |
 | `text` | **required** — the summary to display |
 
 ```toml

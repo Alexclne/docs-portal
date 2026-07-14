@@ -1,41 +1,41 @@
-# Esempio di configurazione branding/tema per generate_docs_portal.py
+# Branding/theme configuration example for docs-portal.
 #
-# Copia questo file nella radice del progetto come "docs-portal.toml" e
-# personalizzalo. TUTTE le voci sono opzionali: quelle che ometti mantengono
-# l'aspetto di default. Senza il file, l'output resta identico a oggi.
+# Copy this file to your project root as "docs-portal.toml" and customize it.
+# Every setting is optional; omitted values use the built-in defaults.
 #
-#   cp tools/docs-portal.example.toml docs-portal.toml
-#   python tools/generate_docs_portal.py
+#   cp examples/docs-portal.example.toml docs-portal.toml
+#   docs-portal
 #
-# Puoi anche indicarne uno diverso con:  --config percorso/al/file.toml
+# You can also pass a different config file with: --config path/to/file.toml
 
 [branding]
-# Nome mostrato nel titolo, nel logo testuale e nell'header del portale.
-name = "Documentazione Acme"
+# Name shown in the portal title, text logo and header.
+name = "Acme Documentation"
 
-# Sottotitolo mostrato nella hero del portale.
-tagline = "Base di conoscenza operativa"
+# Short subtitle shown in the portal hero.
+tagline = "Operational knowledge base"
 
-# Paragrafo descrittivo nella hero del portale.
-description = "Guide, procedure e documenti tecnici raccolti in un unico indice navigabile."
+# Descriptive paragraph shown in the portal hero.
+description = "Guides, procedures and technical documents collected in one navigable index."
 
-# Suffisso del <title> nelle pagine-documento. Se lo ometti, segue "name".
+# <title> suffix for generated document pages. If omitted, it follows "name".
 # doc_title_suffix = "Acme Docs"
 
-# Logo aziendale: percorso relativo a QUESTO file di config. Viene incorporato
-# in base64 dentro l'HTML, cosi' le pagine restano autoportanti e offline.
+# Company logo: path relative to this config file. It is embedded as base64 so
+# pages stay self-contained and work offline.
 logo = "assets/logo.png"
 
-# Favicon: un'emoji (diventa un'icona SVG) oppure il percorso di un'immagine.
+# Favicon: an emoji rendered as SVG, or a path to an image.
 favicon = "🏭"
 
-# Testo del footer del portale (omettilo per non mostrare alcun footer).
-footer = "© 2026 Acme S.r.l."
+# Portal footer text. Omit it to hide the footer.
+footer = "© 2026 Acme Inc."
 
 [colors]
-# Sovrascrivono le CSS custom properties del tema (prefisso "--" implicito).
-# Nomi utili: blue (accento primario), bg (sfondo pagina), dark (sidebar/header),
-# ink (testo), muted (testo secondario), line (bordi), green, orange, red.
+# Overrides for theme CSS custom properties. The "--" prefix is implicit.
+# Useful names: blue (primary accent), bg (page background), dark
+# (sidebar/header), ink (text), muted (secondary text), line (borders), green,
+# orange, red.
 blue = "#b3122c"
 dark = "#1a1a1a"
 bg   = "#f7f5f2"

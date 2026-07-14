@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""docs-portal: genera un portale di documentazione HTML statico da una cartella
-di Markdown, ricostruendo l'indice e le pagine.
+"""docs-portal: build a static HTML documentation portal from a Markdown folder.
 
-Il rendering Markdown e' delegato a markdown-it-py (CommonMark). Comandi:
-  docs-portal init    crea un docs-portal.toml deducendo i capitoli dalle cartelle
-  docs-portal build   genera l'HTML (comando predefinito)
+Markdown rendering is delegated to markdown-it-py (CommonMark). Commands:
+  docs-portal init    create docs-portal.toml from the detected folders
+  docs-portal build   generate HTML output (the default command)
 """
 
 from __future__ import annotations
@@ -29,45 +28,37 @@ from markdown_it import MarkdownIt
 from mdit_py_plugins.tasklists import tasklists_plugin
 
 
-# Radice scansionata di default: la cartella di lavoro corrente. Sovrascrivibile
-# con --root (o dal wrapper di compatibilita' del repo).
+# Default scan root: the current working directory. Overridden by --root.
 ROOT = Path.cwd()
-PORTAL = ROOT / "DOCUMENTAZIONE.html"
+PORTAL = ROOT / "DOCUMENTATION.html"
 GENERATED_MARKER = "ts-docs-generated"
 STANDARDIZED_MARKER = "ts-docs-ui-standardized"
 
-# Disattivato da --no-timestamp: omette l'orario di build dall'output cosi'
-# rilanciare lo script produce file identici byte-per-byte e diff Git puliti.
+# Disabled by --no-timestamp so repeated builds can be byte-identical.
 INCLUDE_TIMESTAMP = True
 
 DEFAULT_DESCRIPTION = (
     "Guides, references and notes collected into one navigable, searchable index."
 )
 
-# Regole di classificazione dei documenti nei capitoli (primo match vince).
-# Ogni regola assegna un capitolo se UNA delle condizioni e' soddisfatta:
-# startswith/contains sul percorso, name_in sul nome file, oppure kind == "html".
+# Document classification rules. First match wins.
+# A rule assigns a chapter when any path/name condition matches.
 DEFAULT_RULES = [
     {"chapter": "guides", "startswith": ["guides/", "guide/", "tutorials/", "howto/", "how-to/"]},
     {"chapter": "reference", "startswith": ["reference/", "api/", "spec/"]},
     {"chapter": "overview", "name_in": ["readme.md", "index.md", "overview.md"], "startswith": ["docs/"]},
 ]
 
-# Riassunti per documento (primo match vince). Condizioni: contains/endswith sul
-# percorso e title_contains sul titolo (in OR fra loro); kind, se presente, in AND.
+# Per-document summaries. First match wins.
 DEFAULT_SUMMARIES: list[dict] = []
 
-# Capitoli aperti di default nel portale.
+# Chapters expanded by default in the portal.
 DEFAULT_OPEN_CHAPTERS = frozenset({"overview"})
 
 
 @dataclass(frozen=True)
 class SiteConfig:
-    """Branding/tema/tassonomia personalizzabili via docs-portal.toml.
-
-    I campi vuoti usano i default del progetto (vedi gli accessor cfg_*): senza
-    file di config l'output resta identico byte-per-byte all'attuale.
-    """
+    """Branding, theme and taxonomy options loaded from docs-portal.toml."""
 
     name: str = "Documentation"
     tagline: str = "Knowledge base"
@@ -77,7 +68,7 @@ class SiteConfig:
     favicon_href: str = ""
     footer: str = ""
     color_overrides: dict[str, str] = field(default_factory=dict)
-    # Tassonomia: vuoto = usa i default del progetto (DEFAULT_*/CHAPTERS/...).
+    # Empty values use the built-in defaults.
     chapters: tuple = field(default_factory=tuple)
     rules: tuple = field(default_factory=tuple)
     quick_links: tuple = field(default_factory=tuple)
@@ -156,7 +147,7 @@ def walk_files(suffix: str) -> list[Path]:
         rel_parts = path.relative_to(ROOT).parts
         if any(part in EXCLUDED_DIRS for part in rel_parts):
             continue
-        # Salta le cartelle nascoste (.git, .pytest_cache, .venv, ...).
+        # Skip hidden directories (.git, .pytest_cache, .venv, ...).
         if any(part.startswith(".") for part in rel_parts[:-1]):
             continue
         if path == PORTAL:
@@ -182,21 +173,21 @@ def read_text(path: Path) -> str:
 
 
 def generated_stamp() -> str:
-    """Orario di build per i file generati, oppure "" con --no-timestamp."""
+    """Build timestamp for generated files, or "" when --no-timestamp is used."""
     if INCLUDE_TIMESTAMP:
         return datetime.now().strftime("%Y-%m-%d %H:%M")
     return ""
 
 
 def embed_image(path: Path) -> str:
-    """Codifica un'immagine come data URI base64 (mantiene l'HTML autoportante)."""
+    """Encode an image as a base64 data URI so HTML output stays self-contained."""
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     data = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{data}"
 
 
 def build_favicon(value: str, base_dir: Path) -> str:
-    """Favicon da percorso immagine (embeddata) oppure da emoji (SVG inline)."""
+    """Build a favicon from an image path or from an emoji rendered as inline SVG."""
     candidate = (base_dir / value).resolve()
     if candidate.is_file():
         return embed_image(candidate)
@@ -209,7 +200,7 @@ def build_favicon(value: str, base_dir: Path) -> str:
 
 
 def load_site_config(path: Path | None) -> SiteConfig:
-    """Carica docs-portal.toml; senza file usa i default (aspetto attuale invariato)."""
+    """Load docs-portal.toml, or use defaults when no config exists."""
     defaults = SiteConfig()
     if path is None or not path.exists():
         return defaults
@@ -225,7 +216,7 @@ def load_site_config(path: Path | None) -> SiteConfig:
         if logo_path.is_file():
             logo_uri = embed_image(logo_path)
         else:
-            print(f"[avviso] logo non trovato: {logo_path}")
+            print(f"[warning] logo not found: {logo_path}")
 
     favicon_value = branding.get("favicon", "")
     favicon_href = build_favicon(favicon_value, path.parent) if favicon_value else ""
@@ -237,7 +228,7 @@ def load_site_config(path: Path | None) -> SiteConfig:
         if clean_key and clean_value:
             colors[clean_key] = clean_value
 
-    # Tassonomia: sezioni omesse -> tuple vuota -> gli accessor cfg_* usano i default.
+    # Omitted taxonomy sections stay empty so cfg_* accessors use built-in defaults.
     chapters = tuple(
         (c["key"], c.get("title", c["key"]), c.get("description", ""))
         for c in data.get("chapters", [])
@@ -449,7 +440,7 @@ def chapter_for(path: Path, kind: str) -> str:
 
 @lru_cache(maxsize=1)
 def common_css() -> str:
-    """Foglio di stile condiviso, incluso nel pacchetto come docs_portal.css."""
+    """Shared stylesheet packaged as docs_portal.css."""
     return (files(__package__) / "docs_portal.css").read_text(encoding="utf-8")
 
 
@@ -469,7 +460,7 @@ def render_document_page(md_path: Path, html_path: Path) -> tuple[DocItem, str]:
         if level <= 4
     )
     if not toc_html:
-        toc_html = '<span class="pill">Nessun indice interno</span>'
+        toc_html = '<span class="pill">No page outline</span>'
 
     cfg = CONFIG
     favicon_link = (
@@ -484,7 +475,7 @@ def render_document_page(md_path: Path, html_path: Path) -> tuple[DocItem, str]:
     )
 
     page = f"""<!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -494,14 +485,14 @@ def render_document_page(md_path: Path, html_path: Path) -> tuple[DocItem, str]:
 <body class="doc-page">
   <!-- {GENERATED_MARKER}: source={rel_md.as_posix()} generated={generated_at} -->
   <nav>
-    {doc_logo}<strong>{html.escape(title)}<br><span class="small">Documento Markdown</span></strong>
-    <a class="nav-back" href="{portal_href}">Indice generale</a>
-    <a href="{html.escape(source_href)}">Sorgente Markdown</a>
-    <div class="group">In questa pagina</div>
+    {doc_logo}<strong>{html.escape(title)}<br><span class="small">Markdown document</span></strong>
+    <a class="nav-back" href="{portal_href}">Portal index</a>
+    <a href="{html.escape(source_href)}">Markdown source</a>
+    <div class="group">On this page</div>
       {toc_html}
   </nav>
   <main>
-    <p class="subtitle">Sorgente: <code>{html.escape(rel_md.as_posix())}</code></p>
+    <p class="subtitle">Source: <code>{html.escape(rel_md.as_posix())}</code></p>
     {body}
   </main>
 </body>
@@ -513,7 +504,7 @@ def render_document_page(md_path: Path, html_path: Path) -> tuple[DocItem, str]:
         path=rel_html,
         link=rel_html,
         source=rel_md,
-        kind="Markdown convertito",
+        kind="Converted Markdown",
         chapter=chapter_for(rel_md, "md"),
         generated=True,
     )
@@ -521,10 +512,10 @@ def render_document_page(md_path: Path, html_path: Path) -> tuple[DocItem, str]:
 
 
 def _write_if_changed(path: Path, content: str) -> str:
-    """Scrive il file solo se il contenuto e' cambiato.
+    """Write a file only when its content changed.
 
-    Ritorna "created", "updated" o "unchanged". Evitare riscritture inutili
-    tiene puliti mtime e diff Git.
+    Returns "created", "updated" or "unchanged". Avoiding unnecessary rewrites
+    keeps mtimes and Git diffs clean.
     """
     if path.exists():
         try:
@@ -564,7 +555,7 @@ def build_markdown_docs(md_files: Iterable[Path]) -> tuple[list[DocItem], dict[s
                     path=rel(html_path),
                     link=rel(html_path),
                     source=rel(md_path),
-                    kind="HTML esistente",
+                    kind="Existing HTML",
                     chapter=chapter_for(rel(md_path), "md"),
                     generated=False,
                 )
@@ -587,7 +578,7 @@ def collect_original_html(generated_links: set[Path]) -> list[DocItem]:
                 path=rel_path,
                 link=rel_path,
                 source=None,
-                kind="HTML originale",
+                kind="Original HTML",
                 chapter=chapter_for(rel_path, "html"),
                 generated=False,
             )
@@ -654,22 +645,22 @@ def chapter_meta(chapter: str) -> tuple[str, str]:
     for key, title, desc in cfg_chapters():
         if key == chapter:
             return title, desc
-    return "Altro", "Documenti non classificati automaticamente."
+    return "Other", "Documents that were not classified automatically."
 
 
 def doc_type(item: DocItem) -> str:
     if item.generated:
         return "markdown"
     if item.path.as_posix().lower() in {s.lower() for s in cfg_manual_docs()}:
-        return "manuale"
-    return "operativo"
+        return "manual"
+    return "html"
 
 
 def doc_type_label(value: str) -> str:
     return {
         "markdown": "Markdown",
-        "manuale": "Guida manuale",
-        "operativo": "HTML operativo",
+        "manual": "Manual guide",
+        "html": "Existing HTML",
     }.get(value, value)
 
 
@@ -747,7 +738,7 @@ def search_index_entry(item: DocItem) -> dict[str, str]:
 def card_html(item: DocItem) -> str:
     source = ""
     if item.source is not None:
-        source = f'<a class="button secondary" href="{html.escape(item.source.as_posix())}">Sorgente MD</a>'
+        source = f'<a class="button secondary" href="{html.escape(item.source.as_posix())}">MD source</a>'
     type_key = doc_type(item)
     type_label = doc_type_label(type_key)
     chapter_title = chapter_meta(item.chapter)[0]
@@ -773,7 +764,7 @@ def card_html(item: DocItem) -> str:
     <p class="doc-path">{html.escape(item.path.as_posix())}</p>
   </div>
   <div class="actions">
-    <a class="button" href="{html.escape(item.link.as_posix())}">Apri HTML</a>
+    <a class="button" href="{html.escape(item.link.as_posix())}">Open HTML</a>
     {source}
   </div>
 </article>
@@ -793,7 +784,7 @@ def quick_card_html(item: DocItem, label: str, description: str, area: str) -> s
 
 def chapter_card_html(index: int, key: str, title: str, desc: str, count: int) -> str:
     short_title = title.split(". ", 1)[-1]
-    doc_word = "documento" if count == 1 else "documenti"
+    doc_word = "document" if count == 1 else "documents"
     return f"""
 <a class="area-card" href="#{html.escape(key, quote=True)}">
   <span class="area-index">{index:02d}</span>
@@ -828,15 +819,15 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
 
     type_counts = {
         "markdown": sum(1 for item in items if doc_type(item) == "markdown"),
-        "manuale": sum(1 for item in items if doc_type(item) == "manuale"),
-        "operativo": sum(1 for item in items if doc_type(item) == "operativo"),
+        "manual": sum(1 for item in items if doc_type(item) == "manual"),
+        "html": sum(1 for item in items if doc_type(item) == "html"),
     }
 
     nav = "\n".join(
         [
-            '<a href="#areas">Aree documentazione</a>',
-            '<a href="#start">Apri subito</a>',
-            '<a href="#catalogo">Catalogo completo</a>',
+            '<a href="#areas">Documentation areas</a>',
+            '<a href="#start">Quick access</a>',
+            '<a href="#catalog">Full catalog</a>',
         ]
         + [
             f'<a href="#{key}">{html.escape(title)}</a>'
@@ -852,7 +843,7 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
         docs = chapter_map[key][2]
         if not docs:
             continue
-        doc_word = "documento" if len(docs) == 1 else "documenti"
+        doc_word = "document" if len(docs) == 1 else "documents"
         cards = "\n".join(card_html(item) for item in docs)
         open_attr = " open" if key in open_chapters else ""
         sections.append(
@@ -874,10 +865,10 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
 
     type_buttons = "\n".join(
         [
-            f'<button class="filter-chip active" type="button" data-filter="all">Tutti <span>{len(items)}</span></button>',
+            f'<button class="filter-chip active" type="button" data-filter="all">All <span>{len(items)}</span></button>',
             f'<button class="filter-chip" type="button" data-filter="markdown">Markdown <span>{type_counts["markdown"]}</span></button>',
-            f'<button class="filter-chip" type="button" data-filter="manuale">Guide manuali <span>{type_counts["manuale"]}</span></button>',
-            f'<button class="filter-chip" type="button" data-filter="operativo">HTML operativi <span>{type_counts["operativo"]}</span></button>',
+            f'<button class="filter-chip" type="button" data-filter="manual">Manual guides <span>{type_counts["manual"]}</span></button>',
+            f'<button class="filter-chip" type="button" data-filter="html">Existing HTML <span>{type_counts["html"]}</span></button>',
         ]
     )
 
@@ -904,8 +895,9 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
     ).replace("</", "<\\/")
 
     generated_at = generated_stamp()
+    portal_href = PORTAL.relative_to(ROOT).as_posix()
     updated_pill = (
-        f'<span class="pill">Aggiornato: {html.escape(generated_at)}</span>'
+        f'<span class="pill">Updated: {html.escape(generated_at)}</span>'
         if generated_at
         else ""
     )
@@ -925,7 +917,7 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
         else ""
     )
     html_page = f"""<!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -933,13 +925,13 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
   <style>{common_css()}{theme_css}</style>
 </head>
 <body class="portal-page">
-  <a class="skip-link" href="#main-content">Vai al contenuto</a>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <!-- {GENERATED_MARKER}: portal generated={generated_at} -->
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="DOCUMENTAZIONE.html">{brand_logo}{html.escape(cfg.name, quote=False)}</a>
+      <a class="brand" href="{html.escape(portal_href)}">{brand_logo}{html.escape(cfg.name, quote=False)}</a>
       <div class="top-search">
-        <input class="search" id="doc-search" type="search" placeholder="Cerca nella documentazione..." aria-label="Cerca nel contenuto della documentazione">
+        <input class="search" id="doc-search" type="search" placeholder="Search documentation..." aria-label="Search documentation content">
       </div>
       <div class="top-actions">
         {updated_pill}
@@ -955,35 +947,35 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
       <h1>{html.escape(cfg.name, quote=False)}</h1>
       <p>{html.escape(cfg.description, quote=False)}</p>
       <div class="hero-actions">
-        <a class="button" href="#catalogo">Vai al catalogo</a>
-        <a class="button secondary" href="#areas">Sfoglia per area</a>
+        <a class="button" href="#catalog">Open catalog</a>
+        <a class="button secondary" href="#areas">Browse by area</a>
       </div>
     </div>
-    <div class="hero-summary" aria-label="Riepilogo documentazione">
-      <span class="hero-label">Indice locale</span>
+    <div class="hero-summary" aria-label="Documentation summary">
+      <span class="hero-label">Local index</span>
       <strong>{len(items)}</strong>
-      <p>documenti HTML raggiungibili dalla dashboard.</p>
+      <p>HTML documents reachable from the dashboard.</p>
       <div class="hero-mini-grid">
         <span><b>{type_counts["markdown"]}</b>Markdown</span>
-        <span><b>{type_counts["manuale"]}</b>Manuali</span>
-        <span><b>{type_counts["operativo"]}</b>Operativi</span>
+        <span><b>{type_counts["manual"]}</b>Manual</span>
+        <span><b>{type_counts["html"]}</b>HTML</span>
       </div>
     </div>
   </section>
 
   <main class="dashboard-layout" id="main-content" tabindex="-1">
     <aside class="dashboard-sidebar">
-      <h2>Navigazione</h2>
+      <h2>Navigation</h2>
       <nav>{nav}</nav>
-      <h2 style="margin-top:18px;">Aree</h2>
+      <h2 style="margin-top:18px;">Areas</h2>
       <nav class="chapter-shortcuts">{chapter_shortcuts}</nav>
     </aside>
     <div class="dashboard-content">
       <section class="section-panel" id="areas">
         <div class="section-panel-header">
           <div>
-            <h2>Aree documentazione</h2>
-            <p>Una mappa rapida dei capitoli, con conteggio dei documenti disponibili.</p>
+            <h2>Documentation Areas</h2>
+            <p>A quick map of chapters with available document counts.</p>
           </div>
         </div>
         <div class="area-grid">
@@ -994,36 +986,36 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
       <section class="section-panel" id="start">
         <div class="section-panel-header">
           <div>
-            <h2>Apri subito</h2>
-            <p>I documenti che probabilmente servono piu' spesso durante lavoro, staging e produzione.</p>
+            <h2>Quick Access</h2>
+            <p>The documents you are most likely to need during daily work.</p>
           </div>
-          <span class="pill info">{len(quick_cards)} scorciatoie</span>
+          <span class="pill info">{len(quick_cards)} shortcuts</span>
         </div>
         <div class="quick-grid">
           {''.join(quick_cards)}
         </div>
       </section>
 
-      <section class="section-panel" id="catalogo">
+      <section class="section-panel" id="catalog">
         <div class="section-panel-header">
           <div>
-            <h2>Catalogo completo</h2>
-            <p>Filtra tra guide, documenti manuali e HTML operativi.</p>
+            <h2>Full Catalog</h2>
+            <p>Filter guides, manual documents and existing HTML.</p>
           </div>
         </div>
         <div class="control-panel">
           <div class="control-row">
-            <div class="filter-bar" aria-label="Filtra documenti">
+            <div class="filter-bar" aria-label="Filter documents">
               {type_buttons}
             </div>
           </div>
-          <p class="result-count" id="result-count">{len(items)} documenti visibili.</p>
+          <p class="result-count" id="result-count">{len(items)} visible documents.</p>
         </div>
       </section>
 
       <div class="catalog" id="doc-list">
         {''.join(sections)}
-        <div class="empty" id="empty-state"><strong>Nessun documento trovato.</strong>Prova un altro termine di ricerca oppure cambia filtro.</div>
+        <div class="empty" id="empty-state"><strong>No documents found.</strong> Try another search term or change the filter.</div>
       </div>
     </div>
   </main>
@@ -1136,7 +1128,7 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
       }});
 
       emptyState.style.display = visibleCards ? 'none' : 'block';
-      resultCount.textContent = visibleCards + (visibleCards === 1 ? ' documento visibile.' : ' documenti visibili.') + (hasQuery ? ' Ricerca globale attiva sul contenuto.' : '');
+      resultCount.textContent = visibleCards + (visibleCards === 1 ? ' visible document.' : ' visible documents.') + (hasQuery ? ' Full-content search is active.' : '');
     }}
 
     searchInput.addEventListener('input', applyFilters);
@@ -1160,7 +1152,7 @@ def write_portal(items: list[DocItem], md_count: int) -> str:
 def parse_args(argv: list[str], default_root: Path) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="docs-portal",
-        description="Genera un portale di documentazione HTML statico da una cartella di Markdown.",
+        description="Build a static HTML documentation portal from a Markdown folder.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1169,41 +1161,41 @@ def parse_args(argv: list[str], default_root: Path) -> argparse.Namespace:
             "--root",
             type=Path,
             default=default_root,
-            help="Cartella radice da scansionare (default: cartella corrente).",
+            help="Root directory to scan (default: current directory).",
         )
 
-    build = sub.add_parser("build", help="Genera l'HTML (comando predefinito).")
+    build = sub.add_parser("build", help="Generate HTML output (default command).")
     add_root(build)
     build.add_argument(
         "--out",
-        default="DOCUMENTAZIONE.html",
-        help="Nome del file portale generato nella radice (default: DOCUMENTAZIONE.html).",
+        default="DOCUMENTATION.html",
+        help="Portal filename generated in the root (default: DOCUMENTATION.html).",
     )
     build.add_argument(
         "--config",
         type=Path,
         default=None,
-        help="File TOML di config (default: docs-portal.toml nella radice).",
+        help="TOML config file (default: docs-portal.toml in the root).",
     )
     build.add_argument(
         "--no-timestamp",
         action="store_true",
-        help="Non inserire l'orario di build: output riproducibile e diff Git puliti.",
+        help="Omit the build timestamp for reproducible output and clean Git diffs.",
     )
-    build.add_argument("--quiet", action="store_true", help="Non stampare il riepilogo finale.")
+    build.add_argument("--quiet", action="store_true", help="Suppress the final build summary.")
 
     init = sub.add_parser(
-        "init", help="Crea docs-portal.toml deducendo i capitoli dalle cartelle."
+        "init", help="Create docs-portal.toml by detecting chapters from folders."
     )
     add_root(init)
     init.add_argument(
         "--config",
         type=Path,
         default=None,
-        help="Percorso del file da creare (default: docs-portal.toml nella radice).",
+        help="Path of the file to create (default: docs-portal.toml in the root).",
     )
     init.add_argument(
-        "--force", action="store_true", help="Sovrascrive un docs-portal.toml esistente."
+        "--force", action="store_true", help="Overwrite an existing docs-portal.toml."
     )
 
     return parser.parse_args(argv)
@@ -1228,37 +1220,37 @@ def cmd_build(args: argparse.Namespace) -> None:
 
     if not args.quiet:
         config_label = (
-            str(config_path) if config_path.exists() else "default (nessun docs-portal.toml)"
+            str(config_path) if config_path.exists() else "default (no docs-portal.toml)"
         )
-        portal_word = {"created": "creato", "updated": "aggiornato", "unchanged": "invariato"}[
+        portal_word = {"created": "created", "updated": "updated", "unchanged": "unchanged"}[
             portal_status
         ]
         touched = md_stats["created"] + md_stats["updated"]
-        print("Riepilogo build")
-        print(f"  Radice:         {ROOT}")
+        print("Build summary")
+        print(f"  Root:           {ROOT}")
         print(f"  Config:         {config_label}")
         print(
             f"  Markdown ({len(md_files)}):   "
-            f"{md_stats['created']} creati · {md_stats['updated']} aggiornati · "
-            f"{md_stats['unchanged']} invariati · {md_stats['skipped']} saltati"
+            f"{md_stats['created']} created · {md_stats['updated']} updated · "
+            f"{md_stats['unchanged']} unchanged · {md_stats['skipped']} skipped"
         )
         print(
-            f"  Guide manuali:  {manual_checked} controllate · {manual_updated} aggiornate · "
-            f"{manual_checked - manual_updated} invariate"
+            f"  Manual docs:    {manual_checked} checked · {manual_updated} updated · "
+            f"{manual_checked - manual_updated} unchanged"
         )
-        print(f"  HTML originali: {len(original_html)} collegati")
-        print(f"  Portale:        {PORTAL.relative_to(ROOT).as_posix()} ({portal_word})")
+        print(f"  Existing HTML:  {len(original_html)} linked")
+        print(f"  Portal:         {PORTAL.relative_to(ROOT).as_posix()} ({portal_word})")
         if md_stats["skipped"]:
             print(
-                f"  Nota: {md_stats['skipped']} .md saltati "
-                f"(HTML gia' presente senza marker '{GENERATED_MARKER}')."
+                f"  Note: {md_stats['skipped']} .md files skipped "
+                f"(HTML already exists without marker '{GENERATED_MARKER}')."
             )
         if touched == 0 and portal_status == "unchanged":
-            print("  Nessuna modifica: tutto gia' aggiornato.")
+            print("  No changes: everything is already up to date.")
 
 
 def detect_taxonomy(root: Path) -> tuple[list[tuple[str, str, str]], list[dict]]:
-    """Deduce capitoli e regole dalle cartelle top-level che contengono documenti."""
+    """Infer chapters and rules from top-level folders that contain documents."""
     chapters: list[tuple[str, str, str]] = []
     rules: list[dict] = []
     used: set[str] = set()
@@ -1269,10 +1261,10 @@ def detect_taxonomy(root: Path) -> tuple[list[tuple[str, str, str]], list[dict]]
         for p in root.iterdir()
         if p.is_file()
         and p.suffix.lower() in {".md", ".html"}
-        and p.name != "DOCUMENTAZIONE.html"
+        and p.name != "DOCUMENTATION.html"
     )
     if root_docs:
-        chapters.append(("overview", f"{idx:02d}. Panoramica", "Documenti nella radice del progetto."))
+        chapters.append(("overview", f"{idx:02d}. Overview", "Documents in the project root."))
         used.add("overview")
         rules.append({"chapter": "overview", "name_in": [n.lower() for n in root_docs]})
         idx += 1
@@ -1287,7 +1279,7 @@ def detect_taxonomy(root: Path) -> tuple[list[tuple[str, str, str]], list[dict]]
             continue
         key = slugify(child.name, used)
         chapters.append(
-            (key, f"{idx:02d}. {prettify_filename(child.name)}", f"Documenti nella cartella {child.name}/.")
+            (key, f"{idx:02d}. {prettify_filename(child.name)}", f"Documents in the {child.name}/ folder.")
         )
         rules.append({"chapter": key, "startswith": [child.name.lower()]})
         idx += 1
@@ -1303,11 +1295,11 @@ def render_init_toml(chapters: list[tuple[str, str, str]], rules: list[dict]) ->
         return "[" + ", ".join(q(v) for v in values) + "]"
 
     lines = [
-        "# Configurazione docs-portal generata da `docs-portal init`.",
-        "# Capitoli e regole dedotti dalle cartelle presenti: rifinisci a piacere.",
+        "# docs-portal configuration generated by `docs-portal init`.",
+        "# Chapters and rules were inferred from existing folders; adjust as needed.",
         "",
         "[branding]",
-        '# name = "La mia documentazione"',
+        '# name = "My Documentation"',
         '# tagline = "Knowledge base"',
         '# logo = "assets/logo.png"',
         '# favicon = "\U0001f4da"',
@@ -1335,17 +1327,17 @@ def cmd_init(args: argparse.Namespace) -> None:
     ROOT = args.root.resolve()
     config_path = args.config if args.config else (ROOT / "docs-portal.toml")
     if config_path.exists() and not args.force:
-        print(f"{config_path} esiste gia'. Usa --force per sovrascrivere.")
+        print(f"{config_path} already exists. Use --force to overwrite it.")
         return
 
     chapters, rules = detect_taxonomy(ROOT)
     config_path.write_text(render_init_toml(chapters, rules), encoding="utf-8")
 
-    print(f"Creato {config_path}")
-    print(f"Capitoli dedotti: {len(chapters)}")
+    print(f"Created {config_path}")
+    print(f"Detected chapters: {len(chapters)}")
     for _key, title, _desc in chapters:
         print(f"  - {title}")
-    print("Ora genera la documentazione con:  docs-portal")
+    print("Now build the documentation with:  docs-portal")
 
 
 KNOWN_COMMANDS = {"build", "init"}
