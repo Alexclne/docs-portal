@@ -1,0 +1,41 @@
+# Esempio di configurazione branding/tema per generate_docs_portal.py
+#
+# Copia questo file nella radice del progetto come "docs-portal.toml" e
+# personalizzalo. TUTTE le voci sono opzionali: quelle che ometti mantengono
+# l'aspetto di default. Senza il file, l'output resta identico a oggi.
+#
+#   cp tools/docs-portal.example.toml docs-portal.toml
+#   python tools/generate_docs_portal.py
+#
+# Puoi anche indicarne uno diverso con:  --config percorso/al/file.toml
+
+[branding]
+# Nome mostrato nel titolo, nel logo testuale e nell'header del portale.
+name = "Documentazione Acme"
+
+# Sottotitolo mostrato nella hero del portale.
+tagline = "Base di conoscenza operativa"
+
+# Paragrafo descrittivo nella hero del portale.
+description = "Guide, procedure e documenti tecnici raccolti in un unico indice navigabile."
+
+# Suffisso del <title> nelle pagine-documento. Se lo ometti, segue "name".
+# doc_title_suffix = "Acme Docs"
+
+# Logo aziendale: percorso relativo a QUESTO file di config. Viene incorporato
+# in base64 dentro l'HTML, cosi' le pagine restano autoportanti e offline.
+logo = "assets/logo.png"
+
+# Favicon: un'emoji (diventa un'icona SVG) oppure il percorso di un'immagine.
+favicon = "🏭"
+
+# Testo del footer del portale (omettilo per non mostrare alcun footer).
+footer = "© 2026 Acme S.r.l."
+
+[colors]
+# Sovrascrivono le CSS custom properties del tema (prefisso "--" implicito).
+# Nomi utili: blue (accento primario), bg (sfondo pagina), dark (sidebar/header),
+# ink (testo), muted (testo secondario), line (bordi), green, orange, red.
+blue = "#b3122c"
+dark = "#1a1a1a"
+bg   = "#f7f5f2"
