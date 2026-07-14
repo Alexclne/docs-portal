@@ -1675,6 +1675,20 @@ __THEME_CSS__
       box-shadow: var(--shadow);
       overflow: hidden;
     }
+    .graph-page.graph-wide .graph-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .graph-page.graph-wide .control-panel,
+    .graph-page.graph-wide .side-panel {
+      display: none;
+    }
+    .graph-page.graph-wide .graph-stage {
+      min-height: calc(100vh - 82px);
+    }
+    .graph-page.graph-wide .graph-canvas {
+      height: calc(100vh - 144px);
+      min-height: 780px;
+    }
     .control-panel, .side-panel {
       max-height: calc(100vh - 96px);
       overflow: auto;
@@ -1804,7 +1818,16 @@ __THEME_CSS__
       pointer-events: none;
       position: absolute;
     }
-    svg { display: block; height: 100%; min-height: 720px; position: relative; width: 100%; z-index: 1; }
+    svg {
+      cursor: grab;
+      display: block;
+      height: 100%;
+      min-height: 720px;
+      position: relative;
+      width: 100%;
+      z-index: 1;
+    }
+    svg.panning { cursor: grabbing; }
     .edge {
       fill: none;
       opacity: .72;
@@ -1922,8 +1945,12 @@ __THEME_CSS__
             <span>Drag nodes, search, or select a community to inspect the structure.</span>
           </div>
           <div class="stage-actions">
+            <button class="ghost-button" type="button" id="zoom-out">Zoom -</button>
+            <button class="ghost-button" type="button" id="zoom-in">Zoom +</button>
+            <button class="ghost-button" type="button" id="fit-view">Fit</button>
             <button class="ghost-button" type="button" id="reset-view">Reset view</button>
             <button class="ghost-button" type="button" id="toggle-labels">Labels on</button>
+            <button class="ghost-button" type="button" id="toggle-wide">Wide view</button>
           </div>
         </div>
         <div class="graph-canvas">
@@ -1968,6 +1995,10 @@ __THEME_CSS__
     const filters = Array.from(document.querySelectorAll('[data-mode]'));
     const resetView = document.getElementById('reset-view');
     const toggleLabels = document.getElementById('toggle-labels');
+    const zoomIn = document.getElementById('zoom-in');
+    const zoomOut = document.getElementById('zoom-out');
+    const fitView = document.getElementById('fit-view');
+    const toggleWide = document.getElementById('toggle-wide');
     const layoutWidth = graph.layout && graph.layout.width ? graph.layout.width : 1200;
     const layoutHeight = graph.layout && graph.layout.height ? graph.layout.height : 720;
     const largeGraph = graph.nodes.length > 45;
@@ -1986,8 +2017,113 @@ __THEME_CSS__
     let activeMode = 'all';
     let labelsVisible = !largeGraph;
     let selectedId = '';
+    let isPanning = false;
+    let panStart = null;
+    let viewBox = { x: 0, y: 0, width: layoutWidth, height: layoutHeight };
 
-    svg.setAttribute('viewBox', '0 0 ' + layoutWidth + ' ' + layoutHeight);
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function clampView(next) {
+      const margin = 80;
+      const minWidth = Math.max(160, layoutWidth * .08);
+      const maxWidth = layoutWidth * 1.45;
+      const width = clamp(next.width, minWidth, maxWidth);
+      const height = clamp(next.height, Math.max(120, layoutHeight * .08), layoutHeight * 1.45);
+      let x = next.x;
+      let y = next.y;
+
+      if (width >= layoutWidth + margin * 2) {
+        x = (layoutWidth - width) / 2;
+      } else {
+        x = clamp(x, -margin, layoutWidth - width + margin);
+      }
+      if (height >= layoutHeight + margin * 2) {
+        y = (layoutHeight - height) / 2;
+      } else {
+        y = clamp(y, -margin, layoutHeight - height + margin);
+      }
+
+      return { x: x, y: y, width: width, height: height };
+    }
+
+    function setViewBox(next) {
+      viewBox = clampView(next);
+      svg.setAttribute(
+        'viewBox',
+        viewBox.x + ' ' + viewBox.y + ' ' + viewBox.width + ' ' + viewBox.height
+      );
+    }
+
+    function zoomAt(scale, centerX, centerY) {
+      const width = viewBox.width * scale;
+      const height = viewBox.height * scale;
+      const ratioX = (centerX - viewBox.x) / viewBox.width;
+      const ratioY = (centerY - viewBox.y) / viewBox.height;
+      setViewBox({
+        x: centerX - width * ratioX,
+        y: centerY - height * ratioY,
+        width: width,
+        height: height
+      });
+    }
+
+    function visibleNodes() {
+      return graph.nodes.filter(function (node) {
+        const element = nodeElements.get(node.id);
+        return !element || !element.classList.contains('hidden');
+      });
+    }
+
+    function fitVisibleNodes() {
+      const nodes = visibleNodes();
+      if (!nodes.length) {
+        setViewBox({ x: 0, y: 0, width: layoutWidth, height: layoutHeight });
+        return;
+      }
+
+      const padding = largeGraph ? 150 : 110;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      nodes.forEach(function (node) {
+        const radius = node.radius || 12;
+        minX = Math.min(minX, node.x - radius);
+        minY = Math.min(minY, node.y - radius);
+        maxX = Math.max(maxX, node.x + radius);
+        maxY = Math.max(maxY, node.y + radius);
+      });
+
+      let width = Math.max(260, maxX - minX + padding * 2);
+      let height = Math.max(220, maxY - minY + padding * 2);
+      const box = svg.getBoundingClientRect();
+      const aspect = box.width && box.height ? box.width / box.height : 1.6;
+      if (width / height > aspect) {
+        height = width / aspect;
+      } else {
+        width = height * aspect;
+      }
+
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      setViewBox({
+        x: centerX - width / 2,
+        y: centerY - height / 2,
+        width: width,
+        height: height
+      });
+    }
+
+    function svgPointFromEvent(event) {
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      return point.matrixTransform(svg.getScreenCTM().inverse());
+    }
+
+    setViewBox(viewBox);
 
     graph.nodes.forEach(function (node) {
       node.vx = 0;
@@ -2348,22 +2484,77 @@ __THEME_CSS__
     renderGraph();
     renderSideLists();
     applySearch();
+    fitVisibleNodes();
     search.addEventListener('input', applySearch);
     filters.forEach(function (button) {
       button.addEventListener('click', function () {
         activeMode = button.dataset.mode;
         filters.forEach(function (item) { item.classList.toggle('active', item === button); });
         applySearch();
+        fitVisibleNodes();
       });
     });
     resetView.addEventListener('click', function () {
       settleGraph(220);
       applySearch();
       clearSelection();
+      fitVisibleNodes();
     });
     toggleLabels.addEventListener('click', function () {
       labelsVisible = !labelsVisible;
       applyLabelVisibility();
+    });
+    zoomIn.addEventListener('click', function () {
+      zoomAt(.78, viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2);
+    });
+    zoomOut.addEventListener('click', function () {
+      zoomAt(1.28, viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2);
+    });
+    fitView.addEventListener('click', fitVisibleNodes);
+    toggleWide.addEventListener('click', function () {
+      document.body.classList.toggle('graph-wide');
+      toggleWide.textContent = document.body.classList.contains('graph-wide') ? 'Panel view' : 'Wide view';
+      window.setTimeout(fitVisibleNodes, 50);
+    });
+    svg.addEventListener('wheel', function (event) {
+      event.preventDefault();
+      const point = svgPointFromEvent(event);
+      zoomAt(event.deltaY < 0 ? .86 : 1.16, point.x, point.y);
+    }, { passive: false });
+    svg.addEventListener('pointerdown', function (event) {
+      if (event.button !== 0) return;
+      if (event.target.closest && event.target.closest('.node')) return;
+      isPanning = true;
+      panStart = {
+        x: event.clientX,
+        y: event.clientY,
+        viewBox: { x: viewBox.x, y: viewBox.y, width: viewBox.width, height: viewBox.height }
+      };
+      svg.classList.add('panning');
+      svg.setPointerCapture(event.pointerId);
+    });
+    svg.addEventListener('pointermove', function (event) {
+      if (!isPanning || !panStart) return;
+      const dx = (event.clientX - panStart.x) * (panStart.viewBox.width / svg.clientWidth);
+      const dy = (event.clientY - panStart.y) * (panStart.viewBox.height / svg.clientHeight);
+      setViewBox({
+        x: panStart.viewBox.x - dx,
+        y: panStart.viewBox.y - dy,
+        width: panStart.viewBox.width,
+        height: panStart.viewBox.height
+      });
+    });
+    svg.addEventListener('pointerup', function (event) {
+      if (!isPanning) return;
+      isPanning = false;
+      panStart = null;
+      svg.classList.remove('panning');
+      svg.releasePointerCapture(event.pointerId);
+    });
+    svg.addEventListener('pointercancel', function () {
+      isPanning = false;
+      panStart = null;
+      svg.classList.remove('panning');
     });
   </script>
 </body>
