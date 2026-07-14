@@ -22,5 +22,6 @@ to [Semantic Versioning](https://semver.org/).
   `docs-portal.toml`.
 - Idempotent writes (only changed files are rewritten) and `--no-timestamp` for
   reproducible builds.
+- LLM-friendly `llms.txt` generation for documentation portals.
 - Build report summarizing created / updated / unchanged / skipped documents.
 - pytest test suite.

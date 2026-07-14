@@ -1,5 +1,7 @@
 """Tests for idempotent writes and build stats."""
 
+from pathlib import Path
+
 import docs_portal as dp
 
 
@@ -50,3 +52,47 @@ def test_walk_excludes_hidden_and_named_dirs(tmp_path, monkeypatch):
     seen = {dp.rel(p).as_posix() for p in dp.walk_files(".md")}
     assert "keep.md" in seen
     assert seen == {"keep.md"}
+
+
+def test_write_llms_context_creates_index(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
+    monkeypatch.setattr(dp, "LLMS", tmp_path / "llms.txt")
+    monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
+    monkeypatch.setattr(
+        dp,
+        "CONFIG",
+        dp.SiteConfig(name="Acme Docs", description="Team knowledge base"),
+    )
+
+    item = dp.DocItem(
+        title="Install Guide",
+        path=Path("guides/install.html"),
+        link=Path("guides/install.html"),
+        source=Path("guides/install.md"),
+        kind="Converted Markdown",
+        chapter="guides",
+        generated=True,
+    )
+
+    assert dp.write_llms_context([item]) == "created"
+    text = (tmp_path / "llms.txt").read_text(encoding="utf-8")
+    assert text.startswith("# Acme Docs\n")
+    assert "> Team knowledge base" in text
+    assert "<!-- ts-docs-generated: llms -->" in text
+    assert "[Searchable HTML portal](DOCUMENTATION.html)" in text
+    assert "- [Install Guide](guides/install.html): How-to guides and tutorials." in text
+    assert dp.write_llms_context([item]) == "unchanged"
+
+
+def test_write_llms_context_skips_manual_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(dp, "ROOT", tmp_path)
+    monkeypatch.setattr(dp, "PORTAL", tmp_path / "DOCUMENTATION.html")
+    monkeypatch.setattr(dp, "LLMS", tmp_path / "llms.txt")
+    monkeypatch.setattr(dp, "INCLUDE_TIMESTAMP", False)
+
+    manual = tmp_path / "llms.txt"
+    manual.write_text("# Manual context\n", encoding="utf-8")
+
+    assert dp.write_llms_context([]) == "skipped"
+    assert manual.read_text(encoding="utf-8") == "# Manual context\n"
