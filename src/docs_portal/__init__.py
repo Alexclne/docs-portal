@@ -12,6 +12,7 @@ import argparse
 import base64
 import html
 import json
+import math
 import mimetypes
 import re
 import sys
@@ -808,7 +809,7 @@ def graph_target_path(source_file: Path, href: str) -> Path | None:
     return rel_target
 
 
-def graph_node_positions(nodes: list[dict]) -> None:
+def graph_node_positions(nodes: list[dict]) -> tuple[int, int]:
     chapter_order = {
         key: index for index, (key, _title, _desc) in enumerate(cfg_chapters())
     }
@@ -819,25 +820,76 @@ def graph_node_positions(nodes: list[dict]) -> None:
     ):
         grouped.setdefault(node["chapterKey"], []).append(node)
 
-    width = 1200
-    height = 720
-    margin_x = 110
-    margin_y = 92
     groups = list(grouped.values())
     if not groups:
-        return
+        return 1200, 720
+
+    total_nodes = len(nodes)
+    group_count = len(groups)
+    columns = max(1, math.ceil(math.sqrt(group_count)))
+    if total_nodes > 60:
+        columns = max(columns, 4)
+    elif total_nodes > 32:
+        columns = max(columns, 3)
+    columns = min(group_count, columns)
+
+    rows = math.ceil(group_count / columns)
+    cell_width = 380 if total_nodes > 40 else 330
+    row_gap = 34
+    margin_x = 86
+    margin_y = 66
+
+    row_heights: list[int] = []
+    for row_index in range(rows):
+        row_groups = groups[row_index * columns : (row_index + 1) * columns]
+        required = []
+        for group in row_groups:
+            node_cols = min(max(1, math.ceil(math.sqrt(len(group) * 1.35))), len(group))
+            if len(group) > 18:
+                node_cols = min(max(node_cols, 5), 8)
+            node_rows = math.ceil(len(group) / node_cols)
+            required.append(max(250, 96 + (node_rows * 78)))
+        row_heights.append(max(required) if required else 250)
+
+    width = max(1200, (columns * cell_width) + (margin_x * 2))
+    height = max(760, sum(row_heights) + (row_gap * max(0, rows - 1)) + (margin_y * 2))
+
+    row_offsets: list[float] = []
+    cursor_y = margin_y
+    for row_height in row_heights:
+        row_offsets.append(cursor_y)
+        cursor_y += row_height + row_gap
 
     for group_index, group in enumerate(groups):
-        if len(groups) == 1:
-            x = width / 2
-        else:
-            x = margin_x + group_index * ((width - (margin_x * 2)) / (len(groups) - 1))
+        row_index = group_index // columns
+        col_index = group_index % columns
+        cell_x = margin_x + (col_index * cell_width)
+        cell_y = row_offsets[row_index]
+        cell_height = row_heights[row_index]
+        node_cols = min(max(1, math.ceil(math.sqrt(len(group) * 1.35))), len(group))
+        if len(group) > 18:
+            node_cols = min(max(node_cols, 5), 8)
+        node_rows = math.ceil(len(group) / node_cols)
+        usable_width = cell_width - 86
+        usable_height = cell_height - 104
+
         for item_index, node in enumerate(group):
-            y = margin_y + (item_index + 1) * (
-                (height - (margin_y * 2)) / (len(group) + 1)
+            node_col = item_index % node_cols
+            node_row = item_index // node_cols
+            x = (
+                cell_x + (cell_width / 2)
+                if node_cols == 1
+                else cell_x + 42 + node_col * (usable_width / (node_cols - 1))
+            )
+            y = (
+                cell_y + (cell_height / 2)
+                if node_rows == 1
+                else cell_y + 58 + node_row * (usable_height / (node_rows - 1))
             )
             node["x"] = round(x, 2)
             node["y"] = round(y, 2)
+
+    return int(width), int(height)
 
 
 def build_docs_graph(items: list[DocItem]) -> dict:
@@ -907,7 +959,7 @@ def build_docs_graph(items: list[DocItem]) -> dict:
         node["incoming"] = incoming[node["id"]]
         node["outgoing"] = outgoing[node["id"]]
 
-    graph_node_positions(nodes)
+    layout_width, layout_height = graph_node_positions(nodes)
     orphans = [node["id"] for node in nodes if node["incoming"] == 0]
     hubs = sorted(nodes, key=lambda node: (-node["outgoing"], node["title"].lower()))[:10]
 
@@ -915,6 +967,7 @@ def build_docs_graph(items: list[DocItem]) -> dict:
         "marker": GENERATED_MARKER,
         "generated": generated_stamp(),
         "portal": PORTAL.relative_to(ROOT).as_posix(),
+        "layout": {"width": layout_width, "height": layout_height},
         "stats": {
             "nodes": len(nodes),
             "edges": len(edges),
@@ -1568,18 +1621,18 @@ __THEME_CSS__
       color: var(--ink);
     }
     .graph-shell {
-      max-width: 1440px;
+      max-width: none;
       min-height: 100vh;
       margin: 0 auto;
-      padding: 20px;
+      padding: 10px 12px 12px;
     }
     .graph-header {
       border: 1px solid var(--line);
       background: var(--panel);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      margin-bottom: 20px;
-      padding: 18px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
     }
     .graph-header-main {
       align-items: center;
@@ -1597,7 +1650,7 @@ __THEME_CSS__
     }
     .title-block h1 {
       color: var(--ink);
-      font-size: 30px;
+      font-size: 22px;
       line-height: 1.15;
       margin: 0;
     }
@@ -1610,8 +1663,9 @@ __THEME_CSS__
     .header-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
     .graph-layout {
       display: grid;
-      gap: 20px;
-      grid-template-columns: 300px minmax(0, 1fr) 360px;
+      align-items: start;
+      gap: 12px;
+      grid-template-columns: 280px minmax(0, 1fr) 390px;
       width: 100%;
     }
     .graph-page .panel {
@@ -1621,7 +1675,11 @@ __THEME_CSS__
       box-shadow: var(--shadow);
       overflow: hidden;
     }
-    .control-panel, .side-panel { padding: 16px; }
+    .control-panel, .side-panel {
+      max-height: calc(100vh - 96px);
+      overflow: auto;
+      padding: 14px;
+    }
     .control-panel h2, .side-panel h2 {
       border: 0;
       color: #64748b;
@@ -1670,6 +1728,11 @@ __THEME_CSS__
     .metric strong { color: var(--ink); display: block; font-size: 22px; line-height: 1; }
     .metric span { color: var(--muted); display: block; font-size: 12px; margin-top: 5px; }
     .filter-grid, .legend { display: grid; gap: 8px; }
+    .legend {
+      max-height: calc(100vh - 430px);
+      overflow: auto;
+      padding-right: 2px;
+    }
     .filter-button {
       align-items: center;
       background: #fff;
@@ -1694,7 +1757,7 @@ __THEME_CSS__
       color: var(--blue);
     }
     .legend-dot { border-radius: 50%; display: inline-block; height: 10px; margin-right: 8px; width: 10px; }
-    .graph-stage { min-height: calc(100vh - 164px); position: relative; }
+    .graph-stage { min-height: calc(100vh - 96px); position: relative; }
     .stage-toolbar {
       align-items: center;
       display: flex;
@@ -1725,8 +1788,8 @@ __THEME_CSS__
     .graph-canvas {
       background: #fff;
       border-top: 1px solid var(--line);
-      height: calc(100% - 64px);
-      min-height: 620px;
+      height: calc(100vh - 158px);
+      min-height: 720px;
       overflow: hidden;
       position: relative;
     }
@@ -1741,7 +1804,7 @@ __THEME_CSS__
       pointer-events: none;
       position: absolute;
     }
-    svg { display: block; height: 100%; min-height: 620px; position: relative; width: 100%; z-index: 1; }
+    svg { display: block; height: 100%; min-height: 720px; position: relative; width: 100%; z-index: 1; }
     .edge {
       fill: none;
       opacity: .72;
@@ -1757,7 +1820,7 @@ __THEME_CSS__
     }
     .node text {
       fill: var(--ink);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 800;
       paint-order: stroke;
       pointer-events: none;
@@ -1781,6 +1844,11 @@ __THEME_CSS__
     .doc-title { font-size: 19px; font-weight: 800; margin: 0 0 8px; }
     .doc-meta, .doc-summary { color: var(--muted); line-height: 1.5; margin: 0 0 10px; }
     .connection-grid { display: grid; gap: 8px; }
+    .connection-grid, .side-panel .list {
+      max-height: 24vh;
+      overflow: auto;
+      padding-right: 2px;
+    }
     .connection-card {
       background: var(--gray-light);
       border: 1px solid var(--line);
@@ -1810,6 +1878,7 @@ __THEME_CSS__
       .graph-layout { grid-template-columns: 1fr; }
       .graph-stage { min-height: 640px; }
       .graph-canvas, svg { min-height: 560px; }
+      .control-panel, .side-panel { max-height: none; }
     }
   </style>
 </head>
@@ -1821,7 +1890,7 @@ __THEME_CSS__
         <div class="title-block">
           <p class="eyebrow">docs-portal knowledge graph</p>
           <h1>__GRAPH_HEADING__</h1>
-          <p>Explore how documents connect, find hubs, surface orphan pages, and spot broken references without leaving the generated portal.</p>
+          <p>Explore internal links, orphan pages and broken references across the generated documentation.</p>
         </div>
         <div class="header-actions">
           __GENERATED_BADGE__
@@ -1864,20 +1933,28 @@ __THEME_CSS__
       </section>
 
       <aside class="panel side-panel" aria-live="polite">
-        <h2>Selected Document</h2>
-        <div id="selected-doc" class="empty">Select a node to inspect it.</div>
-        <h3>Connections</h3>
-        <div id="selected-connections" class="connection-grid"></div>
+        <h2>Graph Tables</h2>
         <h3>Broken Links</h3>
         <ul id="broken-links" class="list"></ul>
         <h3>Orphan Documents</h3>
         <ul id="orphan-docs" class="list"></ul>
+        <h3>Selected Document</h3>
+        <div id="selected-doc" class="empty">Select a node to inspect it.</div>
+        <h3>Connections</h3>
+        <div id="selected-connections" class="connection-grid"></div>
       </aside>
     </main>
   </div>
 
   <script type="application/json" id="graph-data">__GRAPH_JSON__</script>
   <script>
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    window.addEventListener('load', function () {
+      window.scrollTo(0, 0);
+    });
+
     const graph = JSON.parse(document.getElementById('graph-data').textContent);
     const svg = document.getElementById('graph-svg');
     const search = document.getElementById('graph-search');
@@ -1891,6 +1968,10 @@ __THEME_CSS__
     const filters = Array.from(document.querySelectorAll('[data-mode]'));
     const resetView = document.getElementById('reset-view');
     const toggleLabels = document.getElementById('toggle-labels');
+    const layoutWidth = graph.layout && graph.layout.width ? graph.layout.width : 1200;
+    const layoutHeight = graph.layout && graph.layout.height ? graph.layout.height : 720;
+    const largeGraph = graph.nodes.length > 45;
+    const denseGraph = graph.nodes.length > 90;
     const nodeById = new Map(graph.nodes.map(function (node) { return [node.id, node]; }));
     const nodeElements = new Map();
     const labelElements = new Map();
@@ -1903,13 +1984,19 @@ __THEME_CSS__
     const incomingByNode = new Map();
     const outgoingByNode = new Map();
     let activeMode = 'all';
-    let labelsVisible = true;
+    let labelsVisible = !largeGraph;
     let selectedId = '';
+
+    svg.setAttribute('viewBox', '0 0 ' + layoutWidth + ' ' + layoutHeight);
 
     graph.nodes.forEach(function (node) {
       node.vx = 0;
       node.vy = 0;
-      node.radius = 12 + Math.min(12, Math.sqrt((node.incoming || 0) + (node.outgoing || 0)) * 4);
+      const degree = (node.incoming || 0) + (node.outgoing || 0);
+      const baseRadius = denseGraph ? 6 : largeGraph ? 8 : 12;
+      const maxBoost = denseGraph ? 7 : largeGraph ? 9 : 12;
+      const boost = denseGraph ? 2.2 : largeGraph ? 2.8 : 4;
+      node.radius = baseRadius + Math.min(maxBoost, Math.sqrt(degree) * boost);
       incomingByNode.set(node.id, []);
       outgoingByNode.set(node.id, []);
     });
@@ -2010,6 +2097,15 @@ __THEME_CSS__
       selectedConnections.innerHTML = '';
     }
 
+    function applyLabelVisibility() {
+      toggleLabels.textContent = labelsVisible ? 'Labels on' : 'Labels off';
+      labelElements.forEach(function (labels) {
+        labels.forEach(function (label) {
+          label.style.display = labelsVisible ? '' : 'none';
+        });
+      });
+    }
+
     function selectNode(id) {
       selectedId = id;
       const neighborhood = neighborsOf(id);
@@ -2081,6 +2177,9 @@ __THEME_CSS__
         const group = svgEl('g', { class: 'node', tabindex: '0' });
         group.dataset.nodeId = node.id;
         group.appendChild(svgEl('circle', { r: node.radius, fill: colorByChapter.get(node.chapter) || '#60a5fa' }));
+        const title = svgEl('title');
+        title.textContent = node.title + ' - ' + node.chapter;
+        group.appendChild(title);
         const label = svgEl('text', { x: node.radius + 8, y: -2 });
         label.textContent = node.title;
         group.appendChild(label);
@@ -2120,6 +2219,7 @@ __THEME_CSS__
       });
       settleGraph(140);
       clearSelection();
+      applyLabelVisibility();
     }
 
     function tick() {
@@ -2141,8 +2241,11 @@ __THEME_CSS__
     }
 
     function settleGraph(iterations) {
-      const width = 1200;
-      const height = 720;
+      const width = layoutWidth;
+      const height = layoutHeight;
+      const forceBase = denseGraph ? 7600 : largeGraph ? 5200 : 2600;
+      const desiredDistance = denseGraph ? 250 : largeGraph ? 220 : 180;
+      const centerPull = denseGraph ? .00045 : largeGraph ? .00075 : .002;
       for (let step = 0; step < iterations; step += 1) {
         for (let i = 0; i < graph.nodes.length; i += 1) {
           const a = graph.nodes[i];
@@ -2151,7 +2254,7 @@ __THEME_CSS__
             let dx = b.x - a.x;
             let dy = b.y - a.y;
             let distance = Math.sqrt(dx * dx + dy * dy) || 1;
-            const force = 2600 / (distance * distance);
+            const force = forceBase / (distance * distance);
             dx /= distance;
             dy /= distance;
             if (!a.dragging) { a.vx -= dx * force; a.vy -= dy * force; }
@@ -2165,7 +2268,7 @@ __THEME_CSS__
           const dx = target.x - source.x;
           const dy = target.y - source.y;
           const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-          const pull = (distance - 180) * .006;
+          const pull = (distance - desiredDistance) * .0055;
           const fx = (dx / distance) * pull;
           const fy = (dy / distance) * pull;
           if (!source.dragging) { source.vx += fx; source.vy += fy; }
@@ -2173,8 +2276,8 @@ __THEME_CSS__
         });
         graph.nodes.forEach(function (node) {
           if (!node.dragging) {
-            node.vx += (width / 2 - node.x) * .002;
-            node.vy += (height / 2 - node.y) * .002;
+            node.vx += (width / 2 - node.x) * centerPull;
+            node.vy += (height / 2 - node.y) * centerPull;
             node.x = Math.max(42, Math.min(width - 42, node.x + node.vx));
             node.y = Math.max(42, Math.min(height - 42, node.y + node.vy));
             node.vx *= .82;
@@ -2260,10 +2363,7 @@ __THEME_CSS__
     });
     toggleLabels.addEventListener('click', function () {
       labelsVisible = !labelsVisible;
-      toggleLabels.textContent = labelsVisible ? 'Labels on' : 'Labels off';
-      labelElements.forEach(function (labels) {
-        labels.forEach(function (label) { label.style.display = labelsVisible ? '' : 'none'; });
-      });
+      applyLabelVisibility();
     });
   </script>
 </body>
